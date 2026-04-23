@@ -1,0 +1,2 @@
+ALTER TABLE product_blueprints
+ALTER COLUMN slug TYPE VARCHAR(180);

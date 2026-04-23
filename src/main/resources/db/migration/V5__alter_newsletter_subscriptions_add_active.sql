@@ -1,0 +1,2 @@
+ALTER TABLE newsletter_subscriptions
+ADD COLUMN active BOOLEAN NOT NULL DEFAULT TRUE;
