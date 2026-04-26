@@ -1,122 +1,139 @@
 package com.inkFront.inFront.security;
 
+import com.inkFront.inFront.entity.Role;
+import com.inkFront.inFront.entity.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
-import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.time.LocalDateTime;
-import java.time.ZoneOffset;
 import java.util.Date;
-import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class JwtService {
 
-    @Value("${app.security.jwt.issuer}")
-    private String issuer;
+    private static final String DEV_FALLBACK_SECRET =
+            "local-development-jwt-secret-key-that-is-long-enough-for-hmac-sha";
 
-    @Value("${app.security.jwt.access-token-secret}")
-    private String accessTokenSecretValue;
+    private final SecretKey secretKey;
+    private final long accessTokenValiditySeconds;
+    private final long refreshTokenValiditySeconds;
 
-    @Value("${app.security.jwt.refresh-token-secret}")
-    private String refreshTokenSecretValue;
-
-    @Value("${app.security.jwt.access-token-expiration-seconds}")
-    private long accessTokenExpirationSeconds;
-
-    @Value("${app.security.jwt.refresh-token-expiration-seconds}")
-    private long refreshTokenExpirationSeconds;
-
-    private SecretKey accessTokenSecret;
-    private SecretKey refreshTokenSecret;
-
-    @PostConstruct
-    public void init() {
-        this.accessTokenSecret = toKey(accessTokenSecretValue);
-        this.refreshTokenSecret = toKey(refreshTokenSecretValue);
+    public JwtService(
+            @Value("${app.security.jwt-secret:}") String jwtSecret,
+            @Value("${app.security.access-token-validity-seconds:900}") long accessTokenValiditySeconds,
+            @Value("${app.security.refresh-token-validity-seconds:604800}") long refreshTokenValiditySeconds
+    ) {
+        this.secretKey = buildSecretKey(jwtSecret);
+        this.accessTokenValiditySeconds = accessTokenValiditySeconds;
+        this.refreshTokenValiditySeconds = refreshTokenValiditySeconds;
     }
 
-    public String generateAccessToken(UserPrincipal principal) {
+    public String generateAccessToken(User user) {
         Instant now = Instant.now();
-        Instant expiry = now.plusSeconds(accessTokenExpirationSeconds);
+
+        Set<String> roles = user.getRoles()
+                .stream()
+                .map(Role::getName)
+                .map(Enum::name)
+                .map(this::normalizeAuthority)
+                .collect(Collectors.toSet());
 
         return Jwts.builder()
-                .subject(String.valueOf(principal.getId()))
-                .issuer(issuer)
+                .subject(user.getEmail())
+                .claim("email", user.getEmail())
+                .claim("uid", user.getId())
+                .claim("roles", roles)
                 .issuedAt(Date.from(now))
-                .expiration(Date.from(expiry))
-                .claims(Map.of(
-                        "email", principal.getUsername(),
-                        "roles", principal.getAuthorities().stream().map(Object::toString).toList(),
-                        "type", "access"
-                ))
-                .signWith(accessTokenSecret)
+                .expiration(Date.from(now.plusSeconds(accessTokenValiditySeconds)))
+                .signWith(secretKey)
                 .compact();
     }
 
     public String generateRefreshToken(Long userId, String tokenId) {
         Instant now = Instant.now();
-        Instant expiry = now.plusSeconds(refreshTokenExpirationSeconds);
 
         return Jwts.builder()
                 .subject(String.valueOf(userId))
                 .id(tokenId)
-                .issuer(issuer)
-                .issuedAt(Date.from(now))
-                .expiration(Date.from(expiry))
                 .claim("type", "refresh")
-                .signWith(refreshTokenSecret)
+                .issuedAt(Date.from(now))
+                .expiration(Date.from(now.plusSeconds(refreshTokenValiditySeconds)))
+                .signWith(secretKey)
                 .compact();
-    }
-
-    public Claims extractAccessClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(accessTokenSecret)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-    }
-
-    public Claims extractRefreshClaims(String token) {
-        return Jwts.parser()
-                .verifyWith(refreshTokenSecret)
-                .build()
-                .parseSignedClaims(token)
-                .getPayload();
-    }
-
-    public LocalDateTime extractRefreshExpiry(String token) {
-        Date expiration = extractRefreshClaims(token).getExpiration();
-        return LocalDateTime.ofInstant(expiration.toInstant(), ZoneOffset.UTC);
     }
 
     public String generateTokenId() {
         return UUID.randomUUID().toString();
     }
 
-    private SecretKey toKey(String value) {
-        byte[] bytes;
-        try {
-            bytes = Decoders.BASE64.decode(value);
-        } catch (Exception ex) {
-            bytes = value.getBytes(StandardCharsets.UTF_8);
-        }
-        return Keys.hmacShaKeyFor(bytes.length >= 32 ? bytes : pad(bytes));
+    public String extractUsername(String token) {
+        return parseClaims(token).getSubject();
     }
 
-    private byte[] pad(byte[] input) {
-        byte[] padded = new byte[32];
-        for (int i = 0; i < padded.length; i++) {
-            padded[i] = input[i % input.length];
+    public Claims extractAccessClaims(String token) {
+        return parseClaims(token);
+    }
+
+    public Claims extractRefreshClaims(String token) {
+        Claims claims = parseClaims(token);
+
+        Object type = claims.get("type");
+        if (type == null || !"refresh".equals(String.valueOf(type))) {
+            throw new IllegalArgumentException("Invalid refresh token");
         }
-        return padded;
+
+        return claims;
+    }
+
+    public Instant extractRefreshExpiry(String token) {
+        Date expiration = extractRefreshClaims(token).getExpiration();
+        return expiration == null ? null : expiration.toInstant();
+    }
+
+    public boolean isTokenValid(String token) {
+        try {
+            Claims claims = parseClaims(token);
+            return claims.getExpiration() != null && claims.getExpiration().after(new Date());
+        } catch (Exception ex) {
+            return false;
+        }
+    }
+
+    private Claims parseClaims(String token) {
+        return Jwts.parser()
+                .verifyWith(secretKey)
+                .build()
+                .parseSignedClaims(token)
+                .getPayload();
+    }
+
+    private String normalizeAuthority(String role) {
+        if (role == null || role.isBlank()) {
+            return "ROLE_USER";
+        }
+
+        String cleanRole = role.trim().toUpperCase();
+        return cleanRole.startsWith("ROLE_") ? cleanRole : "ROLE_" + cleanRole;
+    }
+
+    private SecretKey buildSecretKey(String configuredSecret) {
+        if (configuredSecret != null && !configuredSecret.isBlank()) {
+            try {
+                return Keys.hmacShaKeyFor(Decoders.BASE64.decode(configuredSecret));
+            } catch (Exception ignored) {
+                return Keys.hmacShaKeyFor(configuredSecret.getBytes(StandardCharsets.UTF_8));
+            }
+        }
+
+        return Keys.hmacShaKeyFor(DEV_FALLBACK_SECRET.getBytes(StandardCharsets.UTF_8));
     }
 }

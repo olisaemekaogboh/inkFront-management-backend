@@ -1,6 +1,7 @@
 package com.inkFront.inFront.security;
 
 import com.inkFront.inFront.config.SecurityCookieProperties;
+import com.inkFront.inFront.service.CustomUserDetailsService;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import jakarta.servlet.FilterChain;
@@ -47,7 +48,9 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             "/swagger-ui.html",
             "/uploads/**",
             "/error",
-            "/favicon.ico"
+            "/favicon.ico",
+            "/oauth2/**",
+            "/login/oauth2/**"
     );
 
     public JwtAuthenticationFilter(
@@ -65,6 +68,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(@NonNull HttpServletRequest request) {
         String path = request.getServletPath();
+
         boolean isPublic = PUBLIC_PATHS.stream()
                 .anyMatch(pattern -> pathMatcher.match(pattern, path));
 
@@ -84,43 +88,47 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         try {
             if (SecurityContextHolder.getContext().getAuthentication() == null) {
-                String token = cookieService.getCookieValue(request, cookieProperties.getAccessTokenName());
+                String token = cookieService.getCookieValue(
+                        request,
+                        cookieProperties.getAccessTokenName()
+                );
 
                 if (token != null && !token.isBlank()) {
-                    try {
-                        Claims claims = jwtService.extractAccessClaims(token);
-                        String email = claims.get("email", String.class);
+                    Claims claims = jwtService.extractAccessClaims(token);
 
-                        if (email != null) {
-                            UserPrincipal principal =
-                                    (UserPrincipal) customUserDetailsService.loadUserByUsername(email);
-
-                            if (principal != null && principal.isEnabled()) {
-                                UsernamePasswordAuthenticationToken authentication =
-                                        new UsernamePasswordAuthenticationToken(
-                                                principal,
-                                                null,
-                                                principal.getAuthorities()
-                                        );
-                                authentication.setDetails(
-                                        new WebAuthenticationDetailsSource().buildDetails(request)
-                                );
-                                SecurityContextHolder.getContext().setAuthentication(authentication);
-
-                                log.debug("Successfully authenticated user: {}", email);
-                            }
-                        }
-                    } catch (JwtException e) {
-                        log.debug("Invalid JWT token: {}", e.getMessage());
-                        SecurityContextHolder.clearContext();
-                        cookieService.clearCookie(response, cookieProperties.getAccessTokenName());
+                    String email = claims.getSubject();
+                    if (email == null || email.isBlank()) {
+                        email = claims.get("email", String.class);
                     }
-                } else {
-                    log.debug("No access token found in request");
+
+                    if (email != null && !email.isBlank()) {
+                        UserPrincipal principal =
+                                (UserPrincipal) customUserDetailsService.loadUserByUsername(email);
+
+                        if (principal != null && principal.isEnabled()) {
+                            UsernamePasswordAuthenticationToken authentication =
+                                    new UsernamePasswordAuthenticationToken(
+                                            principal,
+                                            null,
+                                            principal.getAuthorities()
+                                    );
+
+                            authentication.setDetails(
+                                    new WebAuthenticationDetailsSource().buildDetails(request)
+                            );
+
+                            SecurityContextHolder.getContext().setAuthentication(authentication);
+                            log.debug("Successfully authenticated user: {}", email);
+                        }
+                    }
                 }
             }
-        } catch (Exception e) {
-            log.error("Error processing JWT authentication", e);
+        } catch (JwtException ex) {
+            log.debug("Invalid JWT token: {}", ex.getMessage());
+            SecurityContextHolder.clearContext();
+            cookieService.clearCookie(response, cookieProperties.getAccessTokenName());
+        } catch (Exception ex) {
+            log.error("Error processing JWT authentication", ex);
             SecurityContextHolder.clearContext();
         }
 

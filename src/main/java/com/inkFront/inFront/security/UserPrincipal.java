@@ -1,35 +1,50 @@
 package com.inkFront.inFront.security;
 
+import com.inkFront.inFront.entity.Role;
 import com.inkFront.inFront.entity.User;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class UserPrincipal implements UserDetails {
 
-    private final Long id;
-    private final String username;
-    private final String password;
-    private final boolean enabled;
-    private final boolean accountNonLocked;
-    private final Collection<? extends GrantedAuthority> authorities;
+    private final User user;
+    private final Set<GrantedAuthority> authorities;
 
-    public UserPrincipal(User user) {
-        this.id = user.getId();
-        this.username = user.getEmail();
-        this.password = user.getPasswordHash();
-        this.enabled = Boolean.TRUE.equals(user.getEnabled());
-        this.accountNonLocked = Boolean.TRUE.equals(user.getAccountNonLocked());
-        this.authorities = user.getRoles()
-                .stream()
-                .map(role -> new SimpleGrantedAuthority(role.getName().name()))
-                .toList();
+    private UserPrincipal(User user) {
+        this.user = user;
+        this.authorities = buildAuthorities(user);
+    }
+
+    public static UserPrincipal create(User user) {
+        return new UserPrincipal(user);
+    }
+
+    public User getUser() {
+        return user;
     }
 
     public Long getId() {
-        return id;
+        return user.getId();
+    }
+
+    public String getEmail() {
+        return user.getEmail();
+    }
+
+    @Override
+    public String getUsername() {
+        return user.getEmail();
+    }
+
+    @Override
+    public String getPassword() {
+        return user.getPasswordHash() == null ? "" : user.getPasswordHash();
     }
 
     @Override
@@ -37,14 +52,24 @@ public class UserPrincipal implements UserDetails {
         return authorities;
     }
 
-    @Override
-    public String getPassword() {
-        return password;
+    private Set<GrantedAuthority> buildAuthorities(User user) {
+        if (user.getRoles() == null || user.getRoles().isEmpty()) {
+            return Set.of(new SimpleGrantedAuthority("ROLE_USER"));
+        }
+
+        return user.getRoles()
+                .stream()
+                .map(Role::getName)
+                .map(Enum::name)
+                .filter(role -> role != null && !role.isBlank())
+                .map(UserPrincipal::normalizeAuthority)
+                .map(SimpleGrantedAuthority::new)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
     }
 
-    @Override
-    public String getUsername() {
-        return username;
+    private static String normalizeAuthority(String role) {
+        String cleanRole = role.trim().toUpperCase();
+        return cleanRole.startsWith("ROLE_") ? cleanRole : "ROLE_" + cleanRole;
     }
 
     @Override
@@ -54,7 +79,7 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isAccountNonLocked() {
-        return accountNonLocked;
+        return Boolean.TRUE.equals(user.getAccountNonLocked());
     }
 
     @Override
@@ -64,6 +89,6 @@ public class UserPrincipal implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        return enabled;
+        return Boolean.TRUE.equals(user.getEnabled());
     }
 }

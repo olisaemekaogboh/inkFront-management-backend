@@ -1,140 +1,116 @@
 package com.inkFront.inFront.config;
 
-import com.inkFront.inFront.security.CustomAuthenticationEntryPoint;
-import com.inkFront.inFront.security.CustomUserDetailsService;
-import com.inkFront.inFront.security.JwtAuthenticationFilter;
+import com.inkFront.inFront.security.CustomOAuth2UserService;
+import com.inkFront.inFront.security.JwtCookieAuthenticationFilter;
+import com.inkFront.inFront.security.JwtCookieProperties;
 import com.inkFront.inFront.security.OAuth2AuthenticationSuccessHandler;
-import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.AuthenticationProvider;
-import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
 import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.security.web.csrf.CookieCsrfTokenRepository;
-import org.springframework.security.web.csrf.CsrfTokenRequestAttributeHandler;
 
 @Configuration
 @EnableMethodSecurity
-@RequiredArgsConstructor
+@EnableConfigurationProperties(JwtCookieProperties.class)
 public class SecurityConfig {
 
-    private final JwtAuthenticationFilter jwtAuthenticationFilter;
-    private final CustomAuthenticationEntryPoint customAuthenticationEntryPoint;
-    private final CustomUserDetailsService userDetailsService;
-    private final CorsConfig corsConfig;
-    private final OAuth2AuthenticationSuccessHandler oAuth2AuthenticationSuccessHandler;
-    private final PasswordEncoder passwordEncoder;
+    private final JwtCookieAuthenticationFilter jwtCookieAuthenticationFilter;
+    private final CustomOAuth2UserService customOAuth2UserService;
+    private final OAuth2AuthenticationSuccessHandler successHandler;
 
-    private static final String[] PUBLIC_GET_ENDPOINTS = {
-            "/api/health",
-            "/api/auth/csrf",
-            "/api/public/**",
-            "/api/contact/**",
-            "/api/newsletter/**",
-            "/api-docs/**",
-            "/v3/api-docs/**",
-            "/swagger-ui.html",
-            "/swagger-ui/**",
-            "/uploads/**",
-            "/error",
-            "/favicon.ico",
-            "/oauth2/**",
-            "/login/oauth2/**"
-    };
-
-    private static final String[] PUBLIC_POST_ENDPOINTS = {
-            "/api/auth/login",
-            "/api/auth/register",
-            "/api/auth/refresh",
-            "/api/auth/logout",
-            "/api/contact",
-            "/api/contact/**",
-            "/api/newsletter/subscribe",
-            "/api/newsletter/unsubscribe",
-            "/api/newsletter/**"
-    };
-
-    private static final String[] CSRF_IGNORE_ENDPOINTS = {
-            "/api/auth/login",
-            "/api/auth/register",
-            "/api/auth/refresh",
-            "/api/auth/logout",
-            "/api/auth/csrf",
-            "/api/public/**",
-            "/api/contact/**",
-            "/api/newsletter/**",
-            "/api/health",
-            "/api-docs/**",
-            "/v3/api-docs/**",
-            "/swagger-ui/**",
-            "/oauth2/**",
-            "/login/oauth2/**"
-    };
+    public SecurityConfig(
+            JwtCookieAuthenticationFilter jwtCookieAuthenticationFilter,
+            CustomOAuth2UserService customOAuth2UserService,
+            OAuth2AuthenticationSuccessHandler successHandler
+    ) {
+        this.jwtCookieAuthenticationFilter = jwtCookieAuthenticationFilter;
+        this.customOAuth2UserService = customOAuth2UserService;
+        this.successHandler = successHandler;
+    }
 
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-        CookieCsrfTokenRepository csrfTokenRepository = CookieCsrfTokenRepository.withHttpOnlyFalse();
-        csrfTokenRepository.setCookiePath("/");
-        csrfTokenRepository.setCookieName("XSRF-TOKEN");
-        csrfTokenRepository.setHeaderName("X-XSRF-TOKEN");
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            ObjectProvider<ClientRegistrationRepository> provider
+    ) throws Exception {
 
-        CsrfTokenRequestAttributeHandler requestHandler = new CsrfTokenRequestAttributeHandler();
-        requestHandler.setCsrfRequestAttributeName("_csrf");
+        boolean oauthEnabled = provider.getIfAvailable() != null;
 
         http
-                .cors(cors -> cors.configurationSource(corsConfig.corsConfigurationSource()))
+                .cors(Customizer.withDefaults())
                 .csrf(csrf -> csrf
-                        .csrfTokenRepository(csrfTokenRepository)
-                        .csrfTokenRequestHandler(requestHandler)
-                        .ignoringRequestMatchers(CSRF_IGNORE_ENDPOINTS)
+                        .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
+                        .ignoringRequestMatchers(
+                                "/api/auth/login",
+                                "/api/auth/register",
+                                "/api/auth/refresh",
+                                "/api/auth/logout",
+                                "/api/admin/**",
+                                "/oauth2/**",
+                                "/login/oauth2/**"
+                        )
                 )
-                .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
-                .exceptionHandling(ex -> ex
-                        .authenticationEntryPoint(customAuthenticationEntryPoint)
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                 )
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers(HttpMethod.GET, PUBLIC_GET_ENDPOINTS).permitAll()
-                        .requestMatchers(HttpMethod.POST, PUBLIC_POST_ENDPOINTS).permitAll()
-                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
-                        .requestMatchers(HttpMethod.GET, "/api/auth/me").authenticated()
-                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .requestMatchers("/api/user/**").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(
+                                "/",
+                                "/error",
+                                "/favicon.ico",
+                                "/api-docs/**",
+                                "/swagger-ui/**",
+                                "/swagger-ui.html"
+                        ).permitAll()
+
+                        .requestMatchers(
+                                "/api/public/**",
+                                "/api/auth/**",
+                                "/api/csrf",
+                                "/oauth2/**",
+                                "/login/oauth2/**"
+                        ).permitAll()
+
+                        .requestMatchers(HttpMethod.GET, "/uploads/**", "/assets/**").permitAll()
+
+                        .requestMatchers("/api/admin/**").hasAnyAuthority(
+                                "ROLE_ADMIN",
+                                "ROLE_SUPER_ADMIN"
+                        )
+
                         .anyRequest().authenticated()
                 )
-                .oauth2Login(oauth2 -> oauth2
-                        .successHandler(oAuth2AuthenticationSuccessHandler)
+                .addFilterBefore(
+                        jwtCookieAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
                 )
-                .authenticationProvider(authenticationProvider())
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
-                .httpBasic(AbstractHttpConfigurer::disable)
-                .formLogin(AbstractHttpConfigurer::disable)
-                .logout(AbstractHttpConfigurer::disable);
+                .logout(logout -> logout.disable());
+
+        if (oauthEnabled) {
+            http.oauth2Login(oauth -> oauth
+                    .userInfoEndpoint(user -> user.userService(customOAuth2UserService))
+                    .successHandler(successHandler)
+            );
+        }
 
         return http.build();
     }
 
     @Bean
-    public AuthenticationProvider authenticationProvider() {
-        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
-        provider.setUserDetailsService(userDetailsService);
-        provider.setPasswordEncoder(passwordEncoder);
-        provider.setHideUserNotFoundExceptions(false);
-        return provider;
-    }
-
-    @Bean
-    public AuthenticationManager authenticationManager(AuthenticationConfiguration configuration) throws Exception {
+    public AuthenticationManager authenticationManager(
+            AuthenticationConfiguration configuration
+    ) throws Exception {
         return configuration.getAuthenticationManager();
     }
 }
