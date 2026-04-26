@@ -34,7 +34,8 @@ public class ServiceItem extends SluggableEntity {
 
     @Column(length = 100)
     private String iconKey;
-
+    @Column(length = 700)
+    private String imageUrl;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     private SupportedLanguage language;
