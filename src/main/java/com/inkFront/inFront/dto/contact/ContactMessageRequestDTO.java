@@ -12,30 +12,32 @@ import lombok.*;
 @AllArgsConstructor
 public class ContactMessageRequestDTO {
 
-    @NotBlank
+    @NotBlank(message = "Full name is required")
     @Size(max = 150)
     private String fullName;
 
-    @NotBlank
-    @Email
+    @NotBlank(message = "Email is required")
+    @Email(message = "Enter a valid email address")
     @Size(max = 180)
     private String email;
 
     @Size(max = 50)
     private String phone;
-    @Size(max = 10)
-    private String preferredLanguage;
+
     @Size(max = 150)
     private String company;
 
     @Size(max = 150)
     private String serviceInterest;
 
-    @NotBlank
+    @Size(max = 10)
+    private String preferredLanguage;
+
+    @NotBlank(message = "Subject is required")
     @Size(max = 200)
     private String subject;
 
-    @NotBlank
+    @NotBlank(message = "Message is required")
     @Size(max = 5000)
     private String message;
 }

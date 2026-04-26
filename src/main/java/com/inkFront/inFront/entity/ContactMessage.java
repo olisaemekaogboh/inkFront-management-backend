@@ -10,6 +10,7 @@ import java.time.LocalDateTime;
         name = "contact_messages",
         indexes = {
                 @Index(name = "idx_contact_messages_status", columnList = "status"),
+                @Index(name = "idx_contact_messages_priority", columnList = "priority"),
                 @Index(name = "idx_contact_messages_created_at", columnList = "created_at")
         }
 )
@@ -27,13 +28,13 @@ public class ContactMessage {
     @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
-    @Column(name = "email", nullable = false, length = 180)
+    @Column(nullable = false, length = 180)
     private String email;
 
-    @Column(name = "phone", length = 50)
+    @Column(length = 50)
     private String phone;
 
-    @Column(name = "company", length = 150)
+    @Column(length = 150)
     private String company;
 
     @Column(name = "service_interest", length = 150)
@@ -43,18 +44,35 @@ public class ContactMessage {
     @Builder.Default
     private String preferredLanguage = "EN";
 
-    @Column(name = "subject", nullable = false, length = 200)
+    @Column(nullable = false, length = 200)
     private String subject;
 
-    @Column(name = "message", nullable = false, columnDefinition = "TEXT")
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
 
-    @Column(name = "status", nullable = false, length = 30)
+    @Column(nullable = false, length = 30)
     @Builder.Default
     private String status = "NEW";
 
+    @Column(nullable = false, length = 30)
+    @Builder.Default
+    private String priority = "NORMAL";
+
     @Column(name = "admin_note", columnDefinition = "TEXT")
     private String adminNote;
+
+    @Column(name = "assigned_to", length = 150)
+    private String assignedTo;
+
+    @Column(name = "source", length = 80)
+    @Builder.Default
+    private String source = "WEBSITE";
+
+    @Column(name = "last_contacted_at")
+    private LocalDateTime lastContactedAt;
+
+    @Column(name = "resolved_at")
+    private LocalDateTime resolvedAt;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -69,7 +87,9 @@ public class ContactMessage {
         if (createdAt == null) createdAt = now;
         if (updatedAt == null) updatedAt = now;
         if (status == null || status.isBlank()) status = "NEW";
+        if (priority == null || priority.isBlank()) priority = "NORMAL";
         if (preferredLanguage == null || preferredLanguage.isBlank()) preferredLanguage = "EN";
+        if (source == null || source.isBlank()) source = "WEBSITE";
     }
 
     @PreUpdate
@@ -77,6 +97,11 @@ public class ContactMessage {
         updatedAt = LocalDateTime.now();
 
         if (status == null || status.isBlank()) status = "NEW";
+        if (priority == null || priority.isBlank()) priority = "NORMAL";
         if (preferredLanguage == null || preferredLanguage.isBlank()) preferredLanguage = "EN";
+
+        if ("RESOLVED".equalsIgnoreCase(status) && resolvedAt == null) {
+            resolvedAt = LocalDateTime.now();
+        }
     }
 }

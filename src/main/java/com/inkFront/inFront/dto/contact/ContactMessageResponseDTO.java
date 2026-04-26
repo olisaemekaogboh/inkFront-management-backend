@@ -15,13 +15,18 @@ public class ContactMessageResponseDTO {
     private String fullName;
     private String email;
     private String phone;
-    private String preferredLanguage;
     private String company;
     private String serviceInterest;
+    private String preferredLanguage;
     private String subject;
     private String message;
     private String status;
+    private String priority;
     private String adminNote;
+    private String assignedTo;
+    private String source;
+    private LocalDateTime lastContactedAt;
+    private LocalDateTime resolvedAt;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 }
