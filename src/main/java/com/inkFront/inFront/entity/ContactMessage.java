@@ -1,45 +1,82 @@
 package com.inkFront.inFront.entity;
 
-import com.inkFront.inFront.entity.base.AuditableEntity;
-import com.inkFront.inFront.entity.enums.LeadStatus;
-import com.inkFront.inFront.entity.enums.SupportedLanguage;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
-import lombok.Getter;
-import lombok.Setter;
+import jakarta.persistence.*;
+import lombok.*;
 
+import java.time.LocalDateTime;
+
+@Entity
+@Table(
+        name = "contact_messages",
+        indexes = {
+                @Index(name = "idx_contact_messages_status", columnList = "status"),
+                @Index(name = "idx_contact_messages_created_at", columnList = "created_at")
+        }
+)
 @Getter
 @Setter
-@Entity
-@Table(name = "contact_messages")
-public class ContactMessage extends AuditableEntity {
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class ContactMessage {
 
-    @Column(nullable = false, length = 120)
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(name = "full_name", nullable = false, length = 150)
     private String fullName;
 
-    @Column(nullable = false, length = 160)
+    @Column(name = "email", nullable = false, length = 180)
     private String email;
 
-    @Column(length = 40)
-    private String phoneNumber;
+    @Column(name = "phone", length = 50)
+    private String phone;
 
-    @Column(length = 150)
-    private String companyName;
+    @Column(name = "company", length = 150)
+    private String company;
 
-    @Column(length = 180)
+    @Column(name = "service_interest", length = 150)
+    private String serviceInterest;
+
+    @Column(name = "preferred_language", nullable = false, length = 10)
+    @Builder.Default
+    private String preferredLanguage = "EN";
+
+    @Column(name = "subject", nullable = false, length = 200)
     private String subject;
 
-    @Column(nullable = false, columnDefinition = "TEXT")
+    @Column(name = "message", nullable = false, columnDefinition = "TEXT")
     private String message;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private SupportedLanguage preferredLanguage;
+    @Column(name = "status", nullable = false, length = 30)
+    @Builder.Default
+    private String status = "NEW";
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 20)
-    private LeadStatus status = LeadStatus.NEW;
+    @Column(name = "admin_note", columnDefinition = "TEXT")
+    private String adminNote;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "updated_at")
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        LocalDateTime now = LocalDateTime.now();
+
+        if (createdAt == null) createdAt = now;
+        if (updatedAt == null) updatedAt = now;
+        if (status == null || status.isBlank()) status = "NEW";
+        if (preferredLanguage == null || preferredLanguage.isBlank()) preferredLanguage = "EN";
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+
+        if (status == null || status.isBlank()) status = "NEW";
+        if (preferredLanguage == null || preferredLanguage.isBlank()) preferredLanguage = "EN";
+    }
 }
