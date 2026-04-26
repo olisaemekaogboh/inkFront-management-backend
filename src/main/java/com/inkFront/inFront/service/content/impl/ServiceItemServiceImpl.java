@@ -41,31 +41,17 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     public ServiceDTO getById(Long id) {
         ServiceItem entity = serviceItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Service item not found with id: " + id));
+
         return serviceItemMapper.toDto(entity);
     }
 
     @Override
     public ServiceDTO create(ServiceDTO dto) {
         ServiceItem entity = serviceItemMapper.toEntity(dto);
-
-        if (!StringUtils.hasText(entity.getSlug())) {
-            throw new IllegalArgumentException("Slug is required");
-        }
+        applyCompatibleFields(dto, entity, true);
 
         if (serviceItemRepository.existsBySlug(entity.getSlug())) {
             throw new IllegalArgumentException("Service slug already exists: " + entity.getSlug());
-        }
-
-        if (entity.getFeatured() == null) {
-            entity.setFeatured(false);
-        }
-
-        if (entity.getDisplayOrder() == null) {
-            entity.setDisplayOrder(0);
-        }
-
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
         }
 
         ServiceItem saved = serviceItemRepository.save(entity);
@@ -78,25 +64,10 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 .orElseThrow(() -> new ResourceNotFoundException("Service item not found with id: " + id));
 
         serviceItemMapper.updateEntityFromDto(dto, entity);
-
-        if (!StringUtils.hasText(entity.getSlug())) {
-            throw new IllegalArgumentException("Slug is required");
-        }
+        applyCompatibleFields(dto, entity, false);
 
         if (serviceItemRepository.existsBySlugAndIdNot(entity.getSlug(), id)) {
             throw new IllegalArgumentException("Service slug already exists: " + entity.getSlug());
-        }
-
-        if (entity.getFeatured() == null) {
-            entity.setFeatured(false);
-        }
-
-        if (entity.getDisplayOrder() == null) {
-            entity.setDisplayOrder(0);
-        }
-
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
         }
 
         ServiceItem saved = serviceItemRepository.save(entity);
@@ -108,6 +79,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         if (!serviceItemRepository.existsById(id)) {
             throw new ResourceNotFoundException("Service item not found with id: " + id);
         }
+
         serviceItemRepository.deleteById(id);
     }
 
@@ -154,5 +126,88 @@ public class ServiceItemServiceImpl implements ServiceItemService {
                 ));
 
         return serviceItemMapper.toDto(entity);
+    }
+
+    private void applyCompatibleFields(ServiceDTO dto, ServiceItem entity, boolean creating) {
+        entity.setName(firstNonBlank(dto.getName(), dto.getTitle(), entity.getName(), "Service name is required"));
+        entity.setSlug(firstNonBlank(dto.getSlug(), entity.getSlug(), null, "Slug is required"));
+
+        entity.setShortDescription(firstNonBlankOrNull(
+                dto.getShortDescription(),
+                dto.getSummary(),
+                entity.getShortDescription()
+        ));
+
+        entity.setFullDescription(firstNonBlankOrNull(
+                dto.getFullDescription(),
+                dto.getDescription(),
+                entity.getFullDescription()
+        ));
+
+        entity.setIconKey(firstNonBlankOrNull(
+                dto.getIconKey(),
+                dto.getIcon(),
+                entity.getIconKey()
+        ));
+
+        if (StringUtils.hasText(dto.getCategory())) {
+            entity.setCategory(dto.getCategory().trim());
+        }
+
+        if (dto.getLanguage() != null) {
+            entity.setLanguage(dto.getLanguage());
+        } else if (entity.getLanguage() == null) {
+            entity.setLanguage(SupportedLanguage.EN);
+        }
+
+        if (dto.getDisplayOrder() != null) {
+            entity.setDisplayOrder(dto.getDisplayOrder());
+        } else if (dto.getSortOrder() != null) {
+            entity.setDisplayOrder(dto.getSortOrder());
+        } else if (entity.getDisplayOrder() == null) {
+            entity.setDisplayOrder(0);
+        }
+
+        if (dto.getFeatured() != null) {
+            entity.setFeatured(dto.getFeatured());
+        } else if (entity.getFeatured() == null) {
+            entity.setFeatured(false);
+        }
+
+        if (dto.getActive() != null) {
+            entity.setStatus(Boolean.TRUE.equals(dto.getActive())
+                    ? ContentStatus.PUBLISHED
+                    : ContentStatus.DRAFT);
+        } else if (dto.getStatus() != null) {
+            entity.setStatus(dto.getStatus());
+        } else if (entity.getStatus() == null) {
+            entity.setStatus(creating ? ContentStatus.PUBLISHED : ContentStatus.DRAFT);
+        }
+    }
+
+    private String firstNonBlank(String primary, String secondary, String existing, String errorMessage) {
+        String value = firstNonBlankOrNull(primary, secondary, existing);
+
+        if (!StringUtils.hasText(value)) {
+            throw new IllegalArgumentException(errorMessage);
+        }
+
+        return value.trim();
+    }
+
+    private String firstNonBlankOrNull(String primary, String secondary, String existing) {
+        if (StringUtils.hasText(primary)) {
+            return primary.trim();
+        }
+
+        if (StringUtils.hasText(secondary)) {
+            return secondary.trim();
+        }
+
+        if (StringUtils.hasText(existing)) {
+            return existing.trim();
+        }
+
+        return null;
     }
 }

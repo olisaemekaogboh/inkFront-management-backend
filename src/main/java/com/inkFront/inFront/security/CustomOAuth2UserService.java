@@ -26,13 +26,15 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     @Override
     public OAuth2User loadUser(OAuth2UserRequest userRequest) throws OAuth2AuthenticationException {
         OAuth2User oauth2User = super.loadUser(userRequest);
+
         User user = oauthUserProvisioningService.provisionGoogleUser(oauth2User);
 
         Set<SimpleGrantedAuthority> authorities = user.getRoles()
                 .stream()
                 .map(Role::getName)
                 .map(Enum::name)
-                .map(role -> new SimpleGrantedAuthority("ROLE_" + role))
+                .map(this::normalizeAuthority)
+                .map(SimpleGrantedAuthority::new)
                 .collect(Collectors.toSet());
 
         return new DefaultOAuth2User(
@@ -40,5 +42,14 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
                 oauth2User.getAttributes(),
                 "email"
         );
+    }
+
+    private String normalizeAuthority(String role) {
+        if (role == null || role.isBlank()) {
+            return "ROLE_USER";
+        }
+
+        String cleanRole = role.trim().toUpperCase();
+        return cleanRole.startsWith("ROLE_") ? cleanRole : "ROLE_" + cleanRole;
     }
 }

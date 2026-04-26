@@ -3,7 +3,6 @@ package com.inkFront.inFront.security;
 import com.inkFront.inFront.service.CustomUserDetailsService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
-import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -17,16 +16,17 @@ import java.io.IOException;
 @Component
 public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
 
-    private static final String ACCESS_TOKEN_COOKIE_NAME = "agency_access_token";
-
     private final JwtService jwtService;
+    private final JwtCookieService jwtCookieService;
     private final CustomUserDetailsService customUserDetailsService;
 
     public JwtCookieAuthenticationFilter(
             JwtService jwtService,
+            JwtCookieService jwtCookieService,
             CustomUserDetailsService customUserDetailsService
     ) {
         this.jwtService = jwtService;
+        this.jwtCookieService = jwtCookieService;
         this.customUserDetailsService = customUserDetailsService;
     }
 
@@ -38,16 +38,18 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
 
         try {
-            String token = extractAccessToken(request);
+            String token = jwtCookieService.extractAccessToken(request);
 
             if (
-                    token != null
-                            && SecurityContextHolder.getContext().getAuthentication() == null
-                            && jwtService.isTokenValid(token)
+                    token != null &&
+                            !token.isBlank() &&
+                            SecurityContextHolder.getContext().getAuthentication() == null &&
+                            jwtService.isTokenValid(token)
             ) {
                 String email = jwtService.extractUsername(token);
 
-                UserPrincipal userDetails = customUserDetailsService.loadUserByUsername(email);
+                UserPrincipal userDetails =
+                        customUserDetailsService.loadUserByUsername(email);
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(
@@ -67,19 +69,5 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
-    }
-
-    private String extractAccessToken(HttpServletRequest request) {
-        if (request.getCookies() == null) {
-            return null;
-        }
-
-        for (Cookie cookie : request.getCookies()) {
-            if (ACCESS_TOKEN_COOKIE_NAME.equals(cookie.getName())) {
-                return cookie.getValue();
-            }
-        }
-
-        return null;
     }
 }
