@@ -37,6 +37,7 @@ public class HeroSectionServiceImpl implements HeroSectionService {
     public HeroSectionDTO getById(Long id) {
         HeroSection entity = heroSectionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Hero section not found with id: " + id));
+
         return heroSectionMapper.toDto(entity);
     }
 
@@ -44,12 +45,18 @@ public class HeroSectionServiceImpl implements HeroSectionService {
     public HeroSectionDTO create(HeroSectionDTO dto) {
         HeroSection entity = heroSectionMapper.toEntity(dto);
 
+        if (entity.getLanguage() == null) {
+            entity.setLanguage(SupportedLanguage.EN);
+        }
+
         if (entity.getFeatured() == null) {
             entity.setFeatured(false);
         }
+
         if (entity.getDisplayOrder() == null) {
             entity.setDisplayOrder(0);
         }
+
         if (entity.getStatus() == null) {
             entity.setStatus(ContentStatus.DRAFT);
         }
@@ -65,6 +72,22 @@ public class HeroSectionServiceImpl implements HeroSectionService {
 
         heroSectionMapper.updateEntityFromDto(dto, entity);
 
+        if (entity.getLanguage() == null) {
+            entity.setLanguage(SupportedLanguage.EN);
+        }
+
+        if (entity.getFeatured() == null) {
+            entity.setFeatured(false);
+        }
+
+        if (entity.getDisplayOrder() == null) {
+            entity.setDisplayOrder(0);
+        }
+
+        if (entity.getStatus() == null) {
+            entity.setStatus(ContentStatus.DRAFT);
+        }
+
         HeroSection saved = heroSectionRepository.save(entity);
         return heroSectionMapper.toDto(saved);
     }
@@ -74,6 +97,7 @@ public class HeroSectionServiceImpl implements HeroSectionService {
         if (!heroSectionRepository.existsById(id)) {
             throw new ResourceNotFoundException("Hero section not found with id: " + id);
         }
+
         heroSectionRepository.deleteById(id);
     }
 
@@ -84,16 +108,34 @@ public class HeroSectionServiceImpl implements HeroSectionService {
             String placement,
             boolean featuredOnly
     ) {
-        List<HeroSection> items = featuredOnly
-                ? heroSectionRepository.findByLanguageAndPlacementAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                language, placement, ContentStatus.PUBLISHED
-        )
-                : heroSectionRepository.findByLanguageAndPlacementAndStatusOrderByDisplayOrderAsc(
-                language, placement, ContentStatus.PUBLISHED
-        );
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+
+        List<HeroSection> items = findPublishedHeroSections(safeLanguage, placement, featuredOnly);
+
+        if (items.isEmpty() && safeLanguage != SupportedLanguage.EN) {
+            items = findPublishedHeroSections(SupportedLanguage.EN, placement, featuredOnly);
+        }
 
         return items.stream()
                 .map(heroSectionMapper::toDto)
                 .toList();
+    }
+
+    private List<HeroSection> findPublishedHeroSections(
+            SupportedLanguage language,
+            String placement,
+            boolean featuredOnly
+    ) {
+        return featuredOnly
+                ? heroSectionRepository.findByLanguageAndPlacementAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
+                language,
+                placement,
+                ContentStatus.PUBLISHED
+        )
+                : heroSectionRepository.findByLanguageAndPlacementAndStatusOrderByDisplayOrderAsc(
+                language,
+                placement,
+                ContentStatus.PUBLISHED
+        );
     }
 }

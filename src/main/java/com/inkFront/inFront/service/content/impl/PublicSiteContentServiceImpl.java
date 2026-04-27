@@ -31,13 +31,13 @@ public class PublicSiteContentServiceImpl implements PublicSiteContentService {
         String safeLanguage = normalize(language, DEFAULT_LANGUAGE);
         String safeGroup = normalize(group, "GENERAL");
 
-        return siteSettingRepository
-                .findByLanguageIgnoreCaseAndSettingGroupIgnoreCaseAndStatusIgnoreCaseOrderByDisplayOrderAscSettingKeyAsc(
-                        safeLanguage,
-                        safeGroup,
-                        PUBLISHED
-                )
-                .stream()
+        List<SiteSetting> settings = findPublishedSettings(safeLanguage, safeGroup);
+
+        if (settings.isEmpty() && !DEFAULT_LANGUAGE.equalsIgnoreCase(safeLanguage)) {
+            settings = findPublishedSettings(DEFAULT_LANGUAGE, safeGroup);
+        }
+
+        return settings.stream()
                 .map(this::toDto)
                 .toList();
     }
@@ -60,14 +60,32 @@ public class PublicSiteContentServiceImpl implements PublicSiteContentService {
         String safeLanguage = normalize(language, DEFAULT_LANGUAGE);
         String safePageKey = normalize(pageKey, "GENERAL");
 
+        Page<Faq> page = findPublishedFaqs(safeLanguage, safePageKey, pageable);
+
+        if (page.isEmpty() && !DEFAULT_LANGUAGE.equalsIgnoreCase(safeLanguage)) {
+            page = findPublishedFaqs(DEFAULT_LANGUAGE, safePageKey, pageable);
+        }
+
+        return page.map(this::toDto);
+    }
+
+    private List<SiteSetting> findPublishedSettings(String language, String group) {
+        return siteSettingRepository
+                .findByLanguageIgnoreCaseAndSettingGroupIgnoreCaseAndStatusIgnoreCaseOrderByDisplayOrderAscSettingKeyAsc(
+                        language,
+                        group,
+                        PUBLISHED
+                );
+    }
+
+    private Page<Faq> findPublishedFaqs(String language, String pageKey, Pageable pageable) {
         return faqRepository
                 .findByLanguageIgnoreCaseAndPageKeyIgnoreCaseAndStatusIgnoreCaseOrderByDisplayOrderAscIdAsc(
-                        safeLanguage,
-                        safePageKey,
+                        language,
+                        pageKey,
                         PUBLISHED,
                         pageable
-                )
-                .map(this::toDto);
+                );
     }
 
     private SiteSettingDTO toDto(SiteSetting setting) {

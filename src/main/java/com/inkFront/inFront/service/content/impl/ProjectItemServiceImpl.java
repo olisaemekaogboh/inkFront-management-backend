@@ -38,6 +38,7 @@ public class ProjectItemServiceImpl implements ProjectItemService {
     public ProjectDTO getById(Long id) {
         ProjectItem entity = projectItemRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Project item not found with id: " + id));
+
         return projectItemMapper.toDto(entity);
     }
 
@@ -53,17 +54,7 @@ public class ProjectItemServiceImpl implements ProjectItemService {
             throw new IllegalArgumentException("Project slug already exists: " + entity.getSlug());
         }
 
-        if (entity.getFeatured() == null) {
-            entity.setFeatured(false);
-        }
-
-        if (entity.getDisplayOrder() == null) {
-            entity.setDisplayOrder(0);
-        }
-
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
-        }
+        applyDefaults(entity);
 
         ProjectItem saved = projectItemRepository.save(entity);
         return projectItemMapper.toDto(saved);
@@ -84,6 +75,81 @@ public class ProjectItemServiceImpl implements ProjectItemService {
             throw new IllegalArgumentException("Project slug already exists: " + entity.getSlug());
         }
 
+        applyDefaults(entity);
+
+        ProjectItem saved = projectItemRepository.save(entity);
+        return projectItemMapper.toDto(saved);
+    }
+
+    @Override
+    public void delete(Long id) {
+        if (!projectItemRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Project item not found with id: " + id);
+        }
+
+        projectItemRepository.deleteById(id);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<ProjectDTO> getPublishedProjects(SupportedLanguage language, boolean featuredOnly) {
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+
+        List<ProjectItem> items = findPublishedProjects(safeLanguage, featuredOnly);
+
+        if (items.isEmpty() && safeLanguage != SupportedLanguage.EN) {
+            items = findPublishedProjects(SupportedLanguage.EN, featuredOnly);
+        }
+
+        return items.stream()
+                .map(projectItemMapper::toDto)
+                .toList();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public ProjectDTO getPublishedProjectBySlug(String slug, SupportedLanguage language) {
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+
+        return projectItemRepository.findBySlugAndLanguageAndStatus(
+                        slug,
+                        safeLanguage,
+                        ContentStatus.PUBLISHED
+                )
+                .or(() -> {
+                    if (safeLanguage == SupportedLanguage.EN) {
+                        return java.util.Optional.empty();
+                    }
+
+                    return projectItemRepository.findBySlugAndLanguageAndStatus(
+                            slug,
+                            SupportedLanguage.EN,
+                            ContentStatus.PUBLISHED
+                    );
+                })
+                .map(projectItemMapper::toDto)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Published project not found for slug: " + slug
+                ));
+    }
+
+    private List<ProjectItem> findPublishedProjects(SupportedLanguage language, boolean featuredOnly) {
+        return featuredOnly
+                ? projectItemRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
+                language,
+                ContentStatus.PUBLISHED
+        )
+                : projectItemRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
+                language,
+                ContentStatus.PUBLISHED
+        );
+    }
+
+    private void applyDefaults(ProjectItem entity) {
+        if (entity.getLanguage() == null) {
+            entity.setLanguage(SupportedLanguage.EN);
+        }
+
         if (entity.getFeatured() == null) {
             entity.setFeatured(false);
         }
@@ -95,49 +161,5 @@ public class ProjectItemServiceImpl implements ProjectItemService {
         if (entity.getStatus() == null) {
             entity.setStatus(ContentStatus.DRAFT);
         }
-
-        ProjectItem saved = projectItemRepository.save(entity);
-        return projectItemMapper.toDto(saved);
-    }
-
-    @Override
-    public void delete(Long id) {
-        if (!projectItemRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Project item not found with id: " + id);
-        }
-        projectItemRepository.deleteById(id);
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public List<ProjectDTO> getPublishedProjects(SupportedLanguage language, boolean featuredOnly) {
-        List<ProjectItem> items = featuredOnly
-                ? projectItemRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED
-        )
-                : projectItemRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED
-        );
-
-        return items.stream()
-                .map(projectItemMapper::toDto)
-                .toList();
-    }
-
-    @Override
-    @Transactional(readOnly = true)
-    public ProjectDTO getPublishedProjectBySlug(String slug, SupportedLanguage language) {
-        ProjectItem entity = projectItemRepository.findBySlugAndLanguageAndStatus(
-                        slug,
-                        language,
-                        ContentStatus.PUBLISHED
-                )
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Published project not found for slug: " + slug + " and language: " + language
-                ));
-
-        return projectItemMapper.toDto(entity);
     }
 }

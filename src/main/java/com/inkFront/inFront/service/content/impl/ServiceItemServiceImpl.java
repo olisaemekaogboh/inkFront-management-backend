@@ -90,17 +90,13 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             boolean featuredOnly,
             Pageable pageable
     ) {
-        Page<ServiceItem> page = featuredOnly
-                ? serviceItemRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED,
-                pageable
-        )
-                : serviceItemRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED,
-                pageable
-        );
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+
+        Page<ServiceItem> page = findPublishedServicesPage(safeLanguage, featuredOnly, pageable);
+
+        if (page.isEmpty() && safeLanguage != SupportedLanguage.EN) {
+            page = findPublishedServicesPage(SupportedLanguage.EN, featuredOnly, pageable);
+        }
 
         return PageResponse.<ServiceDTO>builder()
                 .content(page.getContent().stream().map(serviceItemMapper::toDto).toList())
@@ -116,16 +112,46 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Override
     @Transactional(readOnly = true)
     public ServiceDTO getPublishedServiceBySlug(String slug, SupportedLanguage language) {
-        ServiceItem entity = serviceItemRepository.findBySlugAndLanguageAndStatus(
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+
+        return serviceItemRepository.findBySlugAndLanguageAndStatus(
                         slug,
-                        language,
+                        safeLanguage,
                         ContentStatus.PUBLISHED
                 )
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Published service not found for slug: " + slug + " and language: " + language
-                ));
+                .or(() -> {
+                    if (safeLanguage == SupportedLanguage.EN) {
+                        return java.util.Optional.empty();
+                    }
 
-        return serviceItemMapper.toDto(entity);
+                    return serviceItemRepository.findBySlugAndLanguageAndStatus(
+                            slug,
+                            SupportedLanguage.EN,
+                            ContentStatus.PUBLISHED
+                    );
+                })
+                .map(serviceItemMapper::toDto)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Published service not found for slug: " + slug
+                ));
+    }
+
+    private Page<ServiceItem> findPublishedServicesPage(
+            SupportedLanguage language,
+            boolean featuredOnly,
+            Pageable pageable
+    ) {
+        return featuredOnly
+                ? serviceItemRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
+                language,
+                ContentStatus.PUBLISHED,
+                pageable
+        )
+                : serviceItemRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
+                language,
+                ContentStatus.PUBLISHED,
+                pageable
+        );
     }
 
     private void applyCompatibleFields(ServiceDTO dto, ServiceItem entity, boolean creating) {

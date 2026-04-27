@@ -37,20 +37,14 @@ public class HomepageSectionServiceImpl implements HomepageSectionService {
     public HomepageSectionDTO getById(Long id) {
         HomepageSection entity = homepageSectionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Homepage section not found with id: " + id));
+
         return homepageSectionMapper.toDto(entity);
     }
 
     @Override
     public HomepageSectionDTO create(HomepageSectionDTO dto) {
         HomepageSection entity = homepageSectionMapper.toEntity(dto);
-
-        if (entity.getDisplayOrder() == null) {
-            entity.setDisplayOrder(0);
-        }
-
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
-        }
+        applyDefaults(entity);
 
         HomepageSection saved = homepageSectionRepository.save(entity);
         return homepageSectionMapper.toDto(saved);
@@ -62,6 +56,7 @@ public class HomepageSectionServiceImpl implements HomepageSectionService {
                 .orElseThrow(() -> new ResourceNotFoundException("Homepage section not found with id: " + id));
 
         homepageSectionMapper.updateEntityFromDto(dto, entity);
+        applyDefaults(entity);
 
         HomepageSection saved = homepageSectionRepository.save(entity);
         return homepageSectionMapper.toDto(saved);
@@ -72,14 +67,22 @@ public class HomepageSectionServiceImpl implements HomepageSectionService {
         if (!homepageSectionRepository.existsById(id)) {
             throw new ResourceNotFoundException("Homepage section not found with id: " + id);
         }
+
         homepageSectionRepository.deleteById(id);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<HomepageSectionDTO> getPublishedSections(SupportedLanguage language) {
-        return homepageSectionRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(language, ContentStatus.PUBLISHED)
-                .stream()
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+
+        List<HomepageSection> sections = findPublishedSections(safeLanguage);
+
+        if (sections.isEmpty() && safeLanguage != SupportedLanguage.EN) {
+            sections = findPublishedSections(SupportedLanguage.EN);
+        }
+
+        return sections.stream()
                 .map(homepageSectionMapper::toDto)
                 .toList();
     }
@@ -87,12 +90,45 @@ public class HomepageSectionServiceImpl implements HomepageSectionService {
     @Override
     @Transactional(readOnly = true)
     public HomepageSectionDTO getPublishedSectionByKey(String sectionKey, SupportedLanguage language) {
-        HomepageSection entity = homepageSectionRepository
-                .findBySectionKeyIgnoreCaseAndLanguageAndStatus(sectionKey, language, ContentStatus.PUBLISHED)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Published homepage section not found for key: " + sectionKey + " and language: " + language
-                ));
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
 
-        return homepageSectionMapper.toDto(entity);
+        return homepageSectionRepository
+                .findBySectionKeyIgnoreCaseAndLanguageAndStatus(sectionKey, safeLanguage, ContentStatus.PUBLISHED)
+                .or(() -> {
+                    if (safeLanguage == SupportedLanguage.EN) {
+                        return java.util.Optional.empty();
+                    }
+
+                    return homepageSectionRepository.findBySectionKeyIgnoreCaseAndLanguageAndStatus(
+                            sectionKey,
+                            SupportedLanguage.EN,
+                            ContentStatus.PUBLISHED
+                    );
+                })
+                .map(homepageSectionMapper::toDto)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Published homepage section not found for key: " + sectionKey
+                ));
+    }
+
+    private List<HomepageSection> findPublishedSections(SupportedLanguage language) {
+        return homepageSectionRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
+                language,
+                ContentStatus.PUBLISHED
+        );
+    }
+
+    private void applyDefaults(HomepageSection entity) {
+        if (entity.getLanguage() == null) {
+            entity.setLanguage(SupportedLanguage.EN);
+        }
+
+        if (entity.getDisplayOrder() == null) {
+            entity.setDisplayOrder(0);
+        }
+
+        if (entity.getStatus() == null) {
+            entity.setStatus(ContentStatus.DRAFT);
+        }
     }
 }

@@ -40,22 +40,14 @@ public class ClientLogoServiceImpl implements ClientLogoService {
     public ClientLogoDTO getById(Long id) {
         ClientLogo entity = clientLogoRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Client logo not found with id: " + id));
+
         return clientLogoMapper.toDto(entity);
     }
 
     @Override
     public ClientLogoDTO create(ClientLogoDTO dto) {
         ClientLogo entity = clientLogoMapper.toEntity(dto);
-
-        if (entity.getFeatured() == null) {
-            entity.setFeatured(false);
-        }
-        if (entity.getDisplayOrder() == null) {
-            entity.setDisplayOrder(0);
-        }
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
-        }
+        applyDefaults(entity);
 
         ClientLogo saved = clientLogoRepository.save(entity);
         return clientLogoMapper.toDto(saved);
@@ -67,6 +59,7 @@ public class ClientLogoServiceImpl implements ClientLogoService {
                 .orElseThrow(() -> new ResourceNotFoundException("Client logo not found with id: " + id));
 
         clientLogoMapper.updateEntityFromDto(dto, entity);
+        applyDefaults(entity);
 
         ClientLogo saved = clientLogoRepository.save(entity);
         return clientLogoMapper.toDto(saved);
@@ -77,6 +70,7 @@ public class ClientLogoServiceImpl implements ClientLogoService {
         if (!clientLogoRepository.existsById(id)) {
             throw new ResourceNotFoundException("Client logo not found with id: " + id);
         }
+
         clientLogoRepository.deleteById(id);
     }
 
@@ -87,13 +81,13 @@ public class ClientLogoServiceImpl implements ClientLogoService {
             boolean featuredOnly,
             Pageable pageable
     ) {
-        Page<ClientLogo> page = featuredOnly
-                ? clientLogoRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                language, ContentStatus.PUBLISHED, pageable
-        )
-                : clientLogoRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
-                language, ContentStatus.PUBLISHED, pageable
-        );
+        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+
+        Page<ClientLogo> page = findPublishedClientLogos(safeLanguage, featuredOnly, pageable);
+
+        if (page.isEmpty() && safeLanguage != SupportedLanguage.EN) {
+            page = findPublishedClientLogos(SupportedLanguage.EN, featuredOnly, pageable);
+        }
 
         return PageResponse.<ClientLogoDTO>builder()
                 .content(page.getContent().stream().map(clientLogoMapper::toDto).toList())
@@ -104,5 +98,41 @@ public class ClientLogoServiceImpl implements ClientLogoService {
                 .first(page.isFirst())
                 .last(page.isLast())
                 .build();
+    }
+
+    private Page<ClientLogo> findPublishedClientLogos(
+            SupportedLanguage language,
+            boolean featuredOnly,
+            Pageable pageable
+    ) {
+        return featuredOnly
+                ? clientLogoRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
+                language,
+                ContentStatus.PUBLISHED,
+                pageable
+        )
+                : clientLogoRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
+                language,
+                ContentStatus.PUBLISHED,
+                pageable
+        );
+    }
+
+    private void applyDefaults(ClientLogo entity) {
+        if (entity.getLanguage() == null) {
+            entity.setLanguage(SupportedLanguage.EN);
+        }
+
+        if (entity.getFeatured() == null) {
+            entity.setFeatured(false);
+        }
+
+        if (entity.getDisplayOrder() == null) {
+            entity.setDisplayOrder(0);
+        }
+
+        if (entity.getStatus() == null) {
+            entity.setStatus(ContentStatus.DRAFT);
+        }
     }
 }
