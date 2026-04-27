@@ -11,5 +11,19 @@ public interface ContactMessageRepository extends JpaRepository<ContactMessage, 
 
     Page<ContactMessage> findByStatusIgnoreCaseOrderByCreatedAtDesc(String status, Pageable pageable);
 
+    Page<ContactMessage> findByFullNameContainingIgnoreCaseOrEmailContainingIgnoreCaseOrderByCreatedAtDesc(
+            String fullName,
+            String email,
+            Pageable pageable
+    );
+
+    Page<ContactMessage> findByStatusIgnoreCaseAndFullNameContainingIgnoreCaseOrStatusIgnoreCaseAndEmailContainingIgnoreCaseOrderByCreatedAtDesc(
+            String statusForName,
+            String fullName,
+            String statusForEmail,
+            String email,
+            Pageable pageable
+    );
+
     long countByStatusIgnoreCase(String status);
 }

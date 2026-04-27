@@ -22,10 +22,10 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
     private final JavaMailSender mailSender;
     private final RestTemplateBuilder restTemplateBuilder;
 
-    @Value("${inkfront.notifications.admin-email:}")
+    @Value("${inkfront.notifications.admin-email:${app.mail.admin-to:}}")
     private String adminEmail;
 
-    @Value("${spring.mail.username:}")
+    @Value("${spring.mail.username:${app.mail.from:}}")
     private String senderEmail;
 
     @Value("${inkfront.notifications.whatsapp.enabled:false}")
@@ -42,6 +42,11 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
 
     @Override
     public void notifyAdmin(ContactMessage message) {
+        if (message == null) {
+            log.warn("Contact notification skipped: message is null.");
+            return;
+        }
+
         sendEmail(message);
         sendWhatsApp(message);
     }
@@ -56,6 +61,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
             SimpleMailMessage mail = new SimpleMailMessage();
             mail.setFrom(senderEmail);
             mail.setTo(adminEmail);
+            mail.setReplyTo(safeEmail(message.getEmail()));
             mail.setSubject("New InkFront Contact Message: " + safe(message.getSubject()));
             mail.setText(buildMessageText(message));
 
@@ -122,6 +128,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
                 %s
 
                 Status: %s
+                Priority: %s
                 Source: %s
                 """.formatted(
                 safe(message.getFullName()),
@@ -133,6 +140,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
                 safe(message.getSubject()),
                 safe(message.getMessage()),
                 safe(message.getStatus()),
+                safe(message.getPriority()),
                 safe(message.getSource())
         );
     }
@@ -158,11 +166,19 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
         );
     }
 
+    private String safeEmail(String value) {
+        if (isBlank(value)) {
+            return senderEmail;
+        }
+
+        return value.trim();
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.trim().isEmpty();
     }
 
     private String safe(String value) {
-        return value == null || value.trim().isEmpty() ? "N/A" : value.trim();
+        return isBlank(value) ? "N/A" : value.trim();
     }
 }
