@@ -4,6 +4,7 @@ import com.inkFront.inFront.security.CustomOAuth2UserService;
 import com.inkFront.inFront.security.JwtCookieAuthenticationFilter;
 import com.inkFront.inFront.security.JwtCookieProperties;
 import com.inkFront.inFront.security.OAuth2AuthenticationSuccessHandler;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -51,6 +52,27 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session ->
                         session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
+                .exceptionHandling(exception -> exception
+                        .authenticationEntryPoint((request, response, authException) -> {
+                            if (request.getRequestURI().startsWith("/api/")) {
+                                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                                response.setContentType("application/json");
+                                response.getWriter().write(
+                                        "{\"success\":false,\"authenticated\":false,\"message\":\"Unauthorized\"}"
+                                );
+                                return;
+                            }
+
+                            response.sendRedirect("/oauth2/authorization/google");
+                        })
+                        .accessDeniedHandler((request, response, accessDeniedException) -> {
+                            response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                            response.setContentType("application/json");
+                            response.getWriter().write(
+                                    "{\"success\":false,\"message\":\"Forbidden\"}"
+                            );
+                        })
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(
