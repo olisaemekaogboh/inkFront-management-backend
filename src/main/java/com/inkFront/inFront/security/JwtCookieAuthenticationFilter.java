@@ -43,15 +43,13 @@ public class JwtCookieAuthenticationFilter extends OncePerRequestFilter {
             if (
                     token != null &&
                             !token.isBlank() &&
-                            jwtService.isTokenValid(token)
+                            jwtService.isTokenValid(token) &&
+                            SecurityContextHolder.getContext().getAuthentication() == null
             ) {
                 String email = jwtService.extractUsername(token);
 
                 UserPrincipal userDetails =
                         customUserDetailsService.loadUserByUsername(email);
-
-                System.out.println("JWT AUTH USER = " + email);
-                System.out.println("JWT AUTHORITIES = " + userDetails.getAuthorities());
 
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(

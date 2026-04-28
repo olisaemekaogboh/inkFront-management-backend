@@ -78,7 +78,13 @@ public class AuthServiceImpl implements AuthService {
         User user = new User();
         user.setFirstName(requestDTO.getFirstName());
         user.setLastName(requestDTO.getLastName());
-        user.setDisplayName(buildDisplayName(requestDTO.getFirstName(), requestDTO.getLastName(), email));
+        user.setDisplayName(
+                buildDisplayName(
+                        requestDTO.getFirstName(),
+                        requestDTO.getLastName(),
+                        email
+                )
+        );
         user.setEmail(email);
         user.setUsername(email);
         user.setPasswordHash(passwordEncoder.encode(requestDTO.getPassword()));
@@ -89,6 +95,7 @@ public class AuthServiceImpl implements AuthService {
         user.addRole(userRole);
 
         User savedUser = userRepository.save(user);
+
         jwtCookieService.writeLoginCookies(request, response, savedUser);
 
         return buildAuthResponse(savedUser, "Registration successful");
@@ -108,6 +115,7 @@ public class AuthServiceImpl implements AuthService {
         );
 
         User user = resolveAuthenticatedUser(authentication);
+
         jwtCookieService.writeLoginCookies(request, response, user);
 
         return buildAuthResponse(user, "Login successful");
@@ -119,9 +127,9 @@ public class AuthServiceImpl implements AuthService {
             HttpServletResponse response
     ) {
         String oldRefreshToken = jwtCookieService.extractRefreshToken(request);
+
         User user = refreshTokenService.validateAndResolveUser(oldRefreshToken);
 
-        refreshTokenService.rotate(oldRefreshToken, user, request);
         jwtCookieService.clearAuthCookies(request, response);
         jwtCookieService.writeLoginCookies(request, response, user);
 
@@ -140,13 +148,16 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(readOnly = true)
     public AuthUserDTO getCurrentUser() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        Authentication authentication = SecurityContextHolder
+                .getContext()
+                .getAuthentication();
 
         if (authentication == null || authentication.getName() == null) {
             return null;
         }
 
         User user = resolveAuthenticatedUser(authentication);
+
         return buildAuthUser(user);
     }
 
@@ -171,7 +182,6 @@ public class AuthServiceImpl implements AuthService {
 
     private AuthUserDTO buildAuthUser(User user) {
         AuthUserDTO dto = new AuthUserDTO();
-
         dto.setId(user.getId());
         dto.setEmail(user.getEmail());
         dto.setUsername(user.getUsername());
@@ -192,7 +202,11 @@ public class AuthServiceImpl implements AuthService {
         return dto;
     }
 
-    private String buildDisplayName(String firstName, String lastName, String fallbackEmail) {
+    private String buildDisplayName(
+            String firstName,
+            String lastName,
+            String fallbackEmail
+    ) {
         String first = firstName == null ? "" : firstName.trim();
         String last = lastName == null ? "" : lastName.trim();
         String fullName = (first + " " + last).trim();
