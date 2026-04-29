@@ -1,6 +1,5 @@
 package com.inkFront.inFront.entity;
 
-
 import com.inkFront.inFront.entity.base.SluggableEntity;
 import com.inkFront.inFront.entity.enums.ContentStatus;
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
@@ -21,7 +20,7 @@ public class ProjectItem extends SluggableEntity {
     @Column(nullable = false, length = 160)
     private String title;
 
-    @Column(nullable = false, length = 220)
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String summary;
 
     @Column(columnDefinition = "TEXT")
@@ -33,10 +32,10 @@ public class ProjectItem extends SluggableEntity {
     @Column(length = 120)
     private String projectType;
 
-    @Column(length = 255)
+    @Column(columnDefinition = "TEXT")
     private String coverImageUrl;
 
-    @Column(length = 255)
+    @Column(columnDefinition = "TEXT")
     private String liveUrl;
 
     @Enumerated(EnumType.STRING)

@@ -30,6 +30,13 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, Long> 
     );
 
     boolean existsBySlug(String slug);
+    boolean existsBySlugAndLanguage(String slug, SupportedLanguage language);
+
+    boolean existsBySlugAndLanguageAndIdNot(
+            String slug,
+            SupportedLanguage language,
+            Long id
+    );
 
     boolean existsBySlugAndIdNot(String slug, Long id);
 }
