@@ -20,12 +20,16 @@ public class PublicTestimonialController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<Page<TestimonialDTO>>> getPublishedTestimonials(
-            @RequestParam SupportedLanguage language,
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
             @RequestParam(defaultValue = "false") boolean featuredOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        Pageable pageable = PageRequest.of(page, size);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
+        Pageable pageable = PageRequest.of(safePage, safeSize);
+
         return ResponseEntity.ok(
                 ApiResponse.success(
                         testimonialService.getPublishedTestimonials(language, featuredOnly, pageable)

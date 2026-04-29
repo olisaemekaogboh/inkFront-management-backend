@@ -19,7 +19,7 @@ public class PublicHomepageSectionController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<HomepageSectionDTO>>> getPublishedSections(
-            @RequestParam SupportedLanguage language
+            @RequestParam(defaultValue = "EN") SupportedLanguage language
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -31,7 +31,7 @@ public class PublicHomepageSectionController {
     @GetMapping("/{sectionKey}")
     public ResponseEntity<ApiResponse<HomepageSectionDTO>> getPublishedSectionByKey(
             @PathVariable String sectionKey,
-            @RequestParam SupportedLanguage language
+            @RequestParam(defaultValue = "EN") SupportedLanguage language
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(

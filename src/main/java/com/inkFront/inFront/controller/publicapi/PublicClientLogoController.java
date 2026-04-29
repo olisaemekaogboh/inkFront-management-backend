@@ -19,17 +19,20 @@ public class PublicClientLogoController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ClientLogoDTO>>> getPublishedClientLogos(
-            @RequestParam SupportedLanguage language,
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
             @RequestParam(defaultValue = "false") boolean featuredOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size
     ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
         return ResponseEntity.ok(
                 ApiResponse.success(
                         clientLogoService.getPublishedClientLogos(
                                 language,
                                 featuredOnly,
-                                PageRequest.of(page, size)
+                                PageRequest.of(safePage, safeSize)
                         )
                 )
         );

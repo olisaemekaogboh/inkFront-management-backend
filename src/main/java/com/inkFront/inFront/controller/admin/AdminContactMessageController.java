@@ -28,9 +28,12 @@ public class AdminContactMessageController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "12") int size
     ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
         Pageable pageable = PageRequest.of(
-                Math.max(page, 0),
-                Math.max(size, 1),
+                safePage,
+                safeSize,
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
 

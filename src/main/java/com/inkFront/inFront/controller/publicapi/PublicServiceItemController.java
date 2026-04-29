@@ -20,12 +20,16 @@ public class PublicServiceItemController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<PageResponse<ServiceDTO>>> getPublishedServices(
-            @RequestParam SupportedLanguage language,
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
             @RequestParam(defaultValue = "false") boolean featuredOnly,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
-        Pageable pageable = PageRequest.of(page, size);
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
+        Pageable pageable = PageRequest.of(safePage, safeSize);
+
         return ResponseEntity.ok(
                 ApiResponse.success(
                         serviceItemService.getPublishedServices(language, featuredOnly, pageable)
@@ -36,7 +40,7 @@ public class PublicServiceItemController {
     @GetMapping("/{slug}")
     public ResponseEntity<ApiResponse<ServiceDTO>> getPublishedServiceBySlug(
             @PathVariable String slug,
-            @RequestParam SupportedLanguage language
+            @RequestParam(defaultValue = "EN") SupportedLanguage language
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(

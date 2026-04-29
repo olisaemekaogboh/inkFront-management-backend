@@ -19,8 +19,8 @@ public class PublicHeroSectionController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<HeroSectionDTO>>> getPublishedHeroSections(
-            @RequestParam SupportedLanguage language,
-            @RequestParam String placement,
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
+            @RequestParam(defaultValue = "HOME") String placement,
             @RequestParam(defaultValue = "false") boolean featuredOnly
     ) {
         return ResponseEntity.ok(

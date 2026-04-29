@@ -19,18 +19,21 @@ public class PublicBlogPostController {
 
     @GetMapping
     public ResponseEntity<Page<BlogPostDTO>> getPublishedPosts(
-            @RequestParam(required = false) SupportedLanguage language,
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size
     ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
         return ResponseEntity.ok(
-                blogPostService.findPublished(language, page, size)
+                blogPostService.findPublished(language, safePage, safeSize)
         );
     }
 
     @GetMapping("/featured")
     public ResponseEntity<List<BlogPostDTO>> getFeaturedPosts(
-            @RequestParam(required = false) SupportedLanguage language
+            @RequestParam(defaultValue = "EN") SupportedLanguage language
     ) {
         return ResponseEntity.ok(blogPostService.findFeatured(language));
     }
@@ -38,7 +41,7 @@ public class PublicBlogPostController {
     @GetMapping("/slug/{slug}")
     public ResponseEntity<BlogPostDTO> getBySlug(
             @PathVariable String slug,
-            @RequestParam(required = false) SupportedLanguage language
+            @RequestParam(defaultValue = "EN") SupportedLanguage language
     ) {
         return ResponseEntity.ok(blogPostService.findPublishedBySlug(slug, language));
     }
@@ -46,24 +49,30 @@ public class PublicBlogPostController {
     @GetMapping("/category/{category}")
     public ResponseEntity<Page<BlogPostDTO>> getByCategory(
             @PathVariable String category,
-            @RequestParam(required = false) SupportedLanguage language,
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size
     ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
         return ResponseEntity.ok(
-                blogPostService.findPublishedByCategory(category, language, page, size)
+                blogPostService.findPublishedByCategory(category, language, safePage, safeSize)
         );
     }
 
     @GetMapping("/tag/{tag}")
     public ResponseEntity<Page<BlogPostDTO>> getByTag(
             @PathVariable String tag,
-            @RequestParam(required = false) SupportedLanguage language,
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "9") int size
     ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
         return ResponseEntity.ok(
-                blogPostService.findPublishedByTag(tag, language, page, size)
+                blogPostService.findPublishedByTag(tag, language, safePage, safeSize)
         );
     }
 }

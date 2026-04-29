@@ -19,8 +19,10 @@ public class PublicProjectItemController {
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> getPublishedProjects(
-            @RequestParam SupportedLanguage language,
-            @RequestParam(defaultValue = "false") boolean featuredOnly
+            @RequestParam(defaultValue = "EN") SupportedLanguage language,
+            @RequestParam(defaultValue = "false") boolean featuredOnly,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "20") int size
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(
@@ -32,7 +34,7 @@ public class PublicProjectItemController {
     @GetMapping("/{slug}")
     public ResponseEntity<ApiResponse<ProjectDTO>> getPublishedProjectBySlug(
             @PathVariable String slug,
-            @RequestParam SupportedLanguage language
+            @RequestParam(defaultValue = "EN") SupportedLanguage language
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(

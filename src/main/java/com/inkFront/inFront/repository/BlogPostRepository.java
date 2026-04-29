@@ -26,29 +26,29 @@ public interface BlogPostRepository extends JpaRepository<BlogPost, Long> {
     Optional<BlogPost> findWithMediaBySlug(String slug);
 
     @Override
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findAll(Pageable pageable);
 
-    @EntityGraph(attributePaths = {"media"})
-    Page<BlogPost> findAllByLanguage(SupportedLanguage language, Pageable pageable);
+    Page<BlogPost> findAllByLanguage(
+            SupportedLanguage language,
+            Pageable pageable
+    );
 
-    @EntityGraph(attributePaths = {"media"})
-    Page<BlogPost> findAllByStatus(ContentStatus status, Pageable pageable);
+    Page<BlogPost> findAllByStatus(
+            ContentStatus status,
+            Pageable pageable
+    );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findAllByLanguageAndStatus(
             SupportedLanguage language,
             ContentStatus status,
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findAllByStatusOrderByDisplayOrderAscPublishedAtDescCreatedAtDesc(
             ContentStatus status,
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findAllByLanguageAndStatusOrderByDisplayOrderAscPublishedAtDescCreatedAtDesc(
             SupportedLanguage language,
             ContentStatus status,
@@ -66,14 +66,12 @@ public interface BlogPostRepository extends JpaRepository<BlogPost, Long> {
             ContentStatus status
     );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findAllByCategoryIgnoreCaseAndStatusOrderByDisplayOrderAscPublishedAtDescCreatedAtDesc(
             String category,
             ContentStatus status,
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findAllByLanguageAndCategoryIgnoreCaseAndStatusOrderByDisplayOrderAscPublishedAtDescCreatedAtDesc(
             SupportedLanguage language,
             String category,
@@ -81,14 +79,12 @@ public interface BlogPostRepository extends JpaRepository<BlogPost, Long> {
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findDistinctByTagsIgnoreCaseAndStatusOrderByDisplayOrderAscPublishedAtDescCreatedAtDesc(
             String tag,
             ContentStatus status,
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findDistinctByLanguageAndTagsIgnoreCaseAndStatusOrderByDisplayOrderAscPublishedAtDescCreatedAtDesc(
             SupportedLanguage language,
             String tag,
@@ -96,7 +92,6 @@ public interface BlogPostRepository extends JpaRepository<BlogPost, Long> {
             Pageable pageable
     );
 
-    @EntityGraph(attributePaths = {"media"})
     Page<BlogPost> findAllByTitleContainingIgnoreCaseOrExcerptContainingIgnoreCaseOrCategoryContainingIgnoreCaseOrAuthorNameContainingIgnoreCase(
             String title,
             String excerpt,

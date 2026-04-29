@@ -70,8 +70,11 @@ public class AdminBlogPostController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size
     ) {
+        int safePage = Math.max(page, 0);
+        int safeSize = Math.max(1, Math.min(size, 50));
+
         return ResponseEntity.ok(
-                blogPostService.findAllAdmin(language, status, search, page, size)
+                blogPostService.findAllAdmin(language, status, search, safePage, safeSize)
         );
     }
 }
