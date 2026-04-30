@@ -5,6 +5,8 @@ import com.inkFront.inFront.dto.content.ServiceDTO;
 import com.inkFront.inFront.entity.ServiceItem;
 import com.inkFront.inFront.entity.enums.ContentStatus;
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
+import com.inkFront.inFront.exception.DuplicateResourceException;
+import com.inkFront.inFront.exception.InvalidRequestException;
 import com.inkFront.inFront.exception.ResourceNotFoundException;
 import com.inkFront.inFront.mapper.content.ServiceItemMapper;
 import com.inkFront.inFront.repository.ServiceItemRepository;
@@ -29,7 +31,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Transactional(readOnly = true)
     public java.util.List<ServiceDTO> getAll() {
         return serviceItemRepository
-                .findAll(Sort.by(Sort.Direction.ASC, "displayOrder"))
+                .findAll(Sort.by(Sort.Direction.ASC, "displayOrder").and(Sort.by("id")))
                 .stream()
                 .map(serviceItemMapper::toDto)
                 .toList();
@@ -46,24 +48,20 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         ServiceItem entity = new ServiceItem();
         applyFields(dto, entity, true);
         validateSlugLanguageUnique(entity.getSlug(), entity.getLanguage(), null);
-
         return serviceItemMapper.toDto(serviceItemRepository.save(entity));
     }
 
     @Override
     public ServiceDTO update(Long id, ServiceDTO dto) {
         ServiceItem entity = findById(id);
-
         applyFields(dto, entity, false);
         validateSlugLanguageUnique(entity.getSlug(), entity.getLanguage(), id);
-
         return serviceItemMapper.toDto(serviceItemRepository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        ServiceItem entity = findById(id);
-        serviceItemRepository.delete(entity);
+        serviceItemRepository.delete(findById(id));
     }
 
     @Override
@@ -75,18 +73,10 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     ) {
         SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
 
-        Page<ServiceItem> page = findPublishedServicesPage(
-                safeLanguage,
-                featuredOnly,
-                pageable
-        );
+        Page<ServiceItem> page = findPublishedServicesPage(safeLanguage, featuredOnly, pageable);
 
         if (page.isEmpty() && safeLanguage != SupportedLanguage.EN) {
-            page = findPublishedServicesPage(
-                    SupportedLanguage.EN,
-                    featuredOnly,
-                    pageable
-            );
+            page = findPublishedServicesPage(SupportedLanguage.EN, featuredOnly, pageable);
         }
 
         return PageResponse.<ServiceDTO>builder()
@@ -103,24 +93,21 @@ public class ServiceItemServiceImpl implements ServiceItemService {
     @Override
     @Transactional(readOnly = true)
     public ServiceDTO getPublishedServiceBySlug(String slug, SupportedLanguage language) {
+        String safeSlug = required(slug, "Slug is required");
         SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
 
         return serviceItemRepository
-                .findBySlugAndLanguageAndStatus(slug, safeLanguage, ContentStatus.PUBLISHED)
-                .or(() -> {
-                    if (safeLanguage == SupportedLanguage.EN) {
-                        return java.util.Optional.empty();
-                    }
-
-                    return serviceItemRepository.findBySlugAndLanguageAndStatus(
-                            slug,
-                            SupportedLanguage.EN,
-                            ContentStatus.PUBLISHED
-                    );
-                })
+                .findBySlugAndLanguageAndStatus(safeSlug, safeLanguage, ContentStatus.PUBLISHED)
+                .or(() -> safeLanguage == SupportedLanguage.EN
+                        ? java.util.Optional.empty()
+                        : serviceItemRepository.findBySlugAndLanguageAndStatus(
+                        safeSlug,
+                        SupportedLanguage.EN,
+                        ContentStatus.PUBLISHED
+                ))
                 .map(serviceItemMapper::toDto)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Published service not found for slug: " + slug
+                        "Published service not found for slug: " + safeSlug
                 ));
     }
 
@@ -137,12 +124,11 @@ public class ServiceItemServiceImpl implements ServiceItemService {
             Pageable pageable
     ) {
         if (featuredOnly) {
-            return serviceItemRepository
-                    .findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                            language,
-                            ContentStatus.PUBLISHED,
-                            pageable
-                    );
+            return serviceItemRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
+                    language,
+                    ContentStatus.PUBLISHED,
+                    pageable
+            );
         }
 
         return serviceItemRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
@@ -154,41 +140,21 @@ public class ServiceItemServiceImpl implements ServiceItemService {
 
     private void applyFields(ServiceDTO dto, ServiceItem entity, boolean creating) {
         if (dto == null) {
-            throw new IllegalArgumentException("Service data is required");
+            throw new InvalidRequestException("Service data is required");
         }
 
-        entity.setName(required(
-                first(dto.getName(), dto.getTitle(), entity.getName()),
-                "Service name is required"
+        entity.setName(required(first(dto.getName(), dto.getTitle(), entity.getName()), "Service name is required"));
+        entity.setSlug(required(first(dto.getSlug(), entity.getSlug()), "Slug is required"));
+
+        entity.setShortDescription(required(
+                first(dto.getShortDescription(), dto.getSummary(), entity.getShortDescription()),
+                "Short description is required"
         ));
 
-        entity.setSlug(required(
-                first(dto.getSlug(), entity.getSlug()),
-                "Slug is required"
-        ));
-
-        entity.setShortDescription(first(
-                dto.getShortDescription(),
-                dto.getSummary(),
-                entity.getShortDescription()
-        ));
-
-        entity.setFullDescription(first(
-                dto.getFullDescription(),
-                dto.getDescription(),
-                entity.getFullDescription()
-        ));
-
-        entity.setIconKey(first(
-                dto.getIconKey(),
-                dto.getIcon(),
-                entity.getIconKey()
-        ));
-
-        entity.setCategory(first(
-                dto.getCategory(),
-                entity.getCategory()
-        ));
+        entity.setFullDescription(first(dto.getFullDescription(), dto.getDescription(), entity.getFullDescription()));
+        entity.setIconKey(first(dto.getIconKey(), dto.getIcon(), entity.getIconKey()));
+        entity.setCategory(first(dto.getCategory(), entity.getCategory()));
+        entity.setImageUrl(first(dto.getImageUrl(), entity.getImageUrl()));
 
         if (dto.getLanguage() != null) {
             entity.setLanguage(dto.getLanguage());
@@ -217,29 +183,17 @@ public class ServiceItemServiceImpl implements ServiceItemService {
         } else if (dto.getStatus() != null) {
             entity.setStatus(dto.getStatus());
         } else if (entity.getStatus() == null) {
-            entity.setStatus(creating ? ContentStatus.PUBLISHED : ContentStatus.DRAFT);
+            entity.setStatus(creating ? ContentStatus.DRAFT : ContentStatus.DRAFT);
         }
     }
 
-    private void validateSlugLanguageUnique(
-            String slug,
-            SupportedLanguage language,
-            Long currentId
-    ) {
-        boolean exists;
-
-        if (currentId == null) {
-            exists = serviceItemRepository.existsBySlugAndLanguage(slug, language);
-        } else {
-            exists = serviceItemRepository.existsBySlugAndLanguageAndIdNot(
-                    slug,
-                    language,
-                    currentId
-            );
-        }
+    private void validateSlugLanguageUnique(String slug, SupportedLanguage language, Long currentId) {
+        boolean exists = currentId == null
+                ? serviceItemRepository.existsBySlugAndLanguage(slug, language)
+                : serviceItemRepository.existsBySlugAndLanguageAndIdNot(slug, language, currentId);
 
         if (exists) {
-            throw new IllegalArgumentException(
+            throw new DuplicateResourceException(
                     "Service slug already exists for language " + language + ": " + slug
             );
         }
@@ -259,7 +213,7 @@ public class ServiceItemServiceImpl implements ServiceItemService {
 
     private String required(String value, String message) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException(message);
+            throw new InvalidRequestException(message);
         }
 
         return value.trim();

@@ -29,7 +29,6 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, Long> 
             ContentStatus status
     );
 
-    boolean existsBySlug(String slug);
     boolean existsBySlugAndLanguage(String slug, SupportedLanguage language);
 
     boolean existsBySlugAndLanguageAndIdNot(
@@ -37,6 +36,4 @@ public interface ServiceItemRepository extends JpaRepository<ServiceItem, Long> 
             SupportedLanguage language,
             Long id
     );
-
-    boolean existsBySlugAndIdNot(String slug, Long id);
 }
