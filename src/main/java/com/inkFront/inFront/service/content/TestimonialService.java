@@ -19,5 +19,9 @@ public interface TestimonialService {
 
     void delete(Long id);
 
-    Page<TestimonialDTO> getPublishedTestimonials(SupportedLanguage language, boolean featuredOnly, Pageable pageable);
+    Page<TestimonialDTO> getPublishedTestimonials(
+            SupportedLanguage language,
+            boolean featuredOnly,
+            Pageable pageable
+    );
 }

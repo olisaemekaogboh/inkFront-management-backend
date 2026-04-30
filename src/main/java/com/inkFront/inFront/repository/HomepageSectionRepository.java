@@ -20,4 +20,15 @@ public interface HomepageSectionRepository extends JpaRepository<HomepageSection
             SupportedLanguage language,
             ContentStatus status
     );
+
+    boolean existsBySectionKeyIgnoreCaseAndLanguage(
+            String sectionKey,
+            SupportedLanguage language
+    );
+
+    boolean existsBySectionKeyIgnoreCaseAndLanguageAndIdNot(
+            String sectionKey,
+            SupportedLanguage language,
+            Long id
+    );
 }

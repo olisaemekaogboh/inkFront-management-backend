@@ -9,11 +9,17 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class ClientLogoDTO extends AuditDTO {
+
     private String name;
     private String logoUrl;
     private String websiteUrl;
+
     private SupportedLanguage language;
     private ContentStatus status;
+
     private Boolean featured;
+    private Boolean active;
+
     private Integer displayOrder;
+    private Integer sortOrder;
 }

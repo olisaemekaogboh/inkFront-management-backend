@@ -26,13 +26,11 @@ public interface ProjectItemRepository extends JpaRepository<ProjectItem, Long> 
             ContentStatus status
     );
 
-    Optional<ProjectItem> findByIdAndLanguageAndStatus(
-            Long id,
+    boolean existsBySlugAndLanguage(String slug, SupportedLanguage language);
+
+    boolean existsBySlugAndLanguageAndIdNot(
+            String slug,
             SupportedLanguage language,
-            ContentStatus status
+            Long id
     );
-
-    boolean existsBySlug(String slug);
-
-    boolean existsBySlugAndIdNot(String slug, Long id);
 }

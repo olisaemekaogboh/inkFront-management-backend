@@ -9,17 +9,30 @@ import lombok.EqualsAndHashCode;
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class HeroSectionDTO extends AuditDTO {
+
     private String title;
     private String subtitle;
+
     private String body;
+    private String description;
+
     private String backgroundImageUrl;
+    private String imageUrl;
+
     private String placement;
+
     private String primaryButtonLabel;
     private String primaryButtonUrl;
+
     private String secondaryButtonLabel;
     private String secondaryButtonUrl;
+
     private SupportedLanguage language;
     private ContentStatus status;
+
     private Boolean featured;
+    private Boolean active;
+
     private Integer displayOrder;
+    private Integer sortOrder;
 }

@@ -7,6 +7,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.Index;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.Setter;
@@ -14,7 +15,13 @@ import lombok.Setter;
 @Getter
 @Setter
 @Entity
-@Table(name = "client_logos")
+@Table(
+        name = "client_logos",
+        indexes = {
+                @Index(name = "idx_client_logos_language_status", columnList = "language,status"),
+                @Index(name = "idx_client_logos_display_order", columnList = "displayOrder")
+        }
+)
 public class ClientLogo extends AuditableEntity {
 
     @Column(nullable = false, length = 160)
@@ -28,7 +35,7 @@ public class ClientLogo extends AuditableEntity {
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private SupportedLanguage language;
+    private SupportedLanguage language = SupportedLanguage.EN;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

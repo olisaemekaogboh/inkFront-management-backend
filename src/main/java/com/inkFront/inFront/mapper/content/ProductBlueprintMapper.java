@@ -13,4 +13,10 @@ public interface ProductBlueprintMapper {
 
     @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateEntityFromDto(ProductBlueprintDTO dto, @MappingTarget ProductBlueprint entity);
+
+    @AfterMapping
+    default void mapExtras(ProductBlueprint e, @MappingTarget ProductBlueprintDTO d) {
+        d.setSortOrder(e.getDisplayOrder());
+        d.setActive(e.getStatus() == com.inkFront.inFront.entity.enums.ContentStatus.PUBLISHED);
+    }
 }

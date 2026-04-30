@@ -20,9 +20,7 @@ public class PublicProjectItemController {
     @GetMapping
     public ResponseEntity<ApiResponse<List<ProjectDTO>>> getPublishedProjects(
             @RequestParam(defaultValue = "EN") SupportedLanguage language,
-            @RequestParam(defaultValue = "false") boolean featuredOnly,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "20") int size
+            @RequestParam(defaultValue = "false") boolean featuredOnly
     ) {
         return ResponseEntity.ok(
                 ApiResponse.success(

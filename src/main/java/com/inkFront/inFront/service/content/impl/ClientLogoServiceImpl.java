@@ -5,6 +5,7 @@ import com.inkFront.inFront.dto.content.ClientLogoDTO;
 import com.inkFront.inFront.entity.ClientLogo;
 import com.inkFront.inFront.entity.enums.ContentStatus;
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
+import com.inkFront.inFront.exception.InvalidRequestException;
 import com.inkFront.inFront.exception.ResourceNotFoundException;
 import com.inkFront.inFront.mapper.content.ClientLogoMapper;
 import com.inkFront.inFront.repository.ClientLogoRepository;
@@ -15,6 +16,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
@@ -29,7 +31,8 @@ public class ClientLogoServiceImpl implements ClientLogoService {
     @Override
     @Transactional(readOnly = true)
     public List<ClientLogoDTO> getAll() {
-        return clientLogoRepository.findAll(Sort.by(Sort.Direction.ASC, "displayOrder"))
+        return clientLogoRepository
+                .findAll(Sort.by(Sort.Direction.ASC, "displayOrder").and(Sort.by("id")))
                 .stream()
                 .map(clientLogoMapper::toDto)
                 .toList();
@@ -38,40 +41,26 @@ public class ClientLogoServiceImpl implements ClientLogoService {
     @Override
     @Transactional(readOnly = true)
     public ClientLogoDTO getById(Long id) {
-        ClientLogo entity = clientLogoRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Client logo not found with id: " + id));
-
-        return clientLogoMapper.toDto(entity);
+        return clientLogoMapper.toDto(findById(id));
     }
 
     @Override
     public ClientLogoDTO create(ClientLogoDTO dto) {
-        ClientLogo entity = clientLogoMapper.toEntity(dto);
-        applyDefaults(entity);
-
-        ClientLogo saved = clientLogoRepository.save(entity);
-        return clientLogoMapper.toDto(saved);
+        ClientLogo entity = new ClientLogo();
+        applyFields(dto, entity, true);
+        return clientLogoMapper.toDto(clientLogoRepository.save(entity));
     }
 
     @Override
     public ClientLogoDTO update(Long id, ClientLogoDTO dto) {
-        ClientLogo entity = clientLogoRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Client logo not found with id: " + id));
-
-        clientLogoMapper.updateEntityFromDto(dto, entity);
-        applyDefaults(entity);
-
-        ClientLogo saved = clientLogoRepository.save(entity);
-        return clientLogoMapper.toDto(saved);
+        ClientLogo entity = findById(id);
+        applyFields(dto, entity, false);
+        return clientLogoMapper.toDto(clientLogoRepository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        if (!clientLogoRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Client logo not found with id: " + id);
-        }
-
-        clientLogoRepository.deleteById(id);
+        clientLogoRepository.delete(findById(id));
     }
 
     @Override
@@ -100,39 +89,101 @@ public class ClientLogoServiceImpl implements ClientLogoService {
                 .build();
     }
 
+    private ClientLogo findById(Long id) {
+        return clientLogoRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Client logo not found with id: " + id
+                ));
+    }
+
     private Page<ClientLogo> findPublishedClientLogos(
             SupportedLanguage language,
             boolean featuredOnly,
             Pageable pageable
     ) {
-        return featuredOnly
-                ? clientLogoRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED,
-                pageable
-        )
-                : clientLogoRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
+        if (featuredOnly) {
+            return clientLogoRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
+                    language,
+                    ContentStatus.PUBLISHED,
+                    pageable
+            );
+        }
+
+        return clientLogoRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
                 language,
                 ContentStatus.PUBLISHED,
                 pageable
         );
     }
 
-    private void applyDefaults(ClientLogo entity) {
-        if (entity.getLanguage() == null) {
+    private void applyFields(ClientLogoDTO dto, ClientLogo entity, boolean creating) {
+        if (dto == null) {
+            throw new InvalidRequestException("Client logo data is required");
+        }
+
+        entity.setName(required(
+                first(dto.getName(), entity.getName()),
+                "Client name is required"
+        ));
+
+        entity.setLogoUrl(required(
+                first(dto.getLogoUrl(), entity.getLogoUrl()),
+                "Logo URL is required"
+        ));
+
+        entity.setWebsiteUrl(first(
+                dto.getWebsiteUrl(),
+                entity.getWebsiteUrl()
+        ));
+
+        if (dto.getLanguage() != null) {
+            entity.setLanguage(dto.getLanguage());
+        } else if (entity.getLanguage() == null) {
             entity.setLanguage(SupportedLanguage.EN);
         }
 
-        if (entity.getFeatured() == null) {
-            entity.setFeatured(false);
-        }
-
-        if (entity.getDisplayOrder() == null) {
+        if (dto.getDisplayOrder() != null) {
+            entity.setDisplayOrder(dto.getDisplayOrder());
+        } else if (dto.getSortOrder() != null) {
+            entity.setDisplayOrder(dto.getSortOrder());
+        } else if (entity.getDisplayOrder() == null) {
             entity.setDisplayOrder(0);
         }
 
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
+        if (dto.getFeatured() != null) {
+            entity.setFeatured(dto.getFeatured());
+        } else if (entity.getFeatured() == null) {
+            entity.setFeatured(false);
         }
+
+        if (dto.getActive() != null) {
+            entity.setStatus(Boolean.TRUE.equals(dto.getActive())
+                    ? ContentStatus.PUBLISHED
+                    : ContentStatus.DRAFT);
+        } else if (dto.getStatus() != null) {
+            entity.setStatus(dto.getStatus());
+        } else if (entity.getStatus() == null) {
+            entity.setStatus(creating ? ContentStatus.DRAFT : ContentStatus.DRAFT);
+        }
+    }
+
+    private String first(String... values) {
+        if (values == null) return null;
+
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+
+        return null;
+    }
+
+    private String required(String value, String message) {
+        if (!StringUtils.hasText(value)) {
+            throw new InvalidRequestException(message);
+        }
+
+        return value.trim();
     }
 }

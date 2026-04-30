@@ -27,7 +27,6 @@ public class PublicTestimonialController {
     ) {
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(1, Math.min(size, 50));
-
         Pageable pageable = PageRequest.of(safePage, safeSize);
 
         return ResponseEntity.ok(

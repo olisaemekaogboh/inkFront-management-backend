@@ -4,6 +4,8 @@ import com.inkFront.inFront.dto.content.ProjectDTO;
 import com.inkFront.inFront.entity.ProjectItem;
 import com.inkFront.inFront.entity.enums.ContentStatus;
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
+import com.inkFront.inFront.exception.DuplicateResourceException;
+import com.inkFront.inFront.exception.InvalidRequestException;
 import com.inkFront.inFront.exception.ResourceNotFoundException;
 import com.inkFront.inFront.mapper.content.ProjectItemMapper;
 import com.inkFront.inFront.repository.ProjectItemRepository;
@@ -27,7 +29,8 @@ public class ProjectItemServiceImpl implements ProjectItemService {
     @Override
     @Transactional(readOnly = true)
     public List<ProjectDTO> getAll() {
-        return projectItemRepository.findAll(Sort.by(Sort.Direction.ASC, "displayOrder"))
+        return projectItemRepository
+                .findAll(Sort.by(Sort.Direction.ASC, "displayOrder").and(Sort.by("id")))
                 .stream()
                 .map(projectItemMapper::toDto)
                 .toList();
@@ -36,58 +39,30 @@ public class ProjectItemServiceImpl implements ProjectItemService {
     @Override
     @Transactional(readOnly = true)
     public ProjectDTO getById(Long id) {
-        ProjectItem entity = projectItemRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Project item not found with id: " + id));
-
-        return projectItemMapper.toDto(entity);
+        return projectItemMapper.toDto(findById(id));
     }
 
     @Override
     public ProjectDTO create(ProjectDTO dto) {
-        ProjectItem entity = projectItemMapper.toEntity(dto);
+        ProjectItem entity = new ProjectItem();
+        applyFields(dto, entity, true);
+        validateSlugLanguageUnique(entity.getSlug(), entity.getLanguage(), null);
 
-        if (!StringUtils.hasText(entity.getSlug())) {
-            throw new IllegalArgumentException("Slug is required");
-        }
-
-        if (projectItemRepository.existsBySlug(entity.getSlug())) {
-            throw new IllegalArgumentException("Project slug already exists: " + entity.getSlug());
-        }
-
-        applyDefaults(entity);
-
-        ProjectItem saved = projectItemRepository.save(entity);
-        return projectItemMapper.toDto(saved);
+        return projectItemMapper.toDto(projectItemRepository.save(entity));
     }
 
     @Override
     public ProjectDTO update(Long id, ProjectDTO dto) {
-        ProjectItem entity = projectItemRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Project item not found with id: " + id));
+        ProjectItem entity = findById(id);
+        applyFields(dto, entity, false);
+        validateSlugLanguageUnique(entity.getSlug(), entity.getLanguage(), id);
 
-        projectItemMapper.updateEntityFromDto(dto, entity);
-
-        if (!StringUtils.hasText(entity.getSlug())) {
-            throw new IllegalArgumentException("Slug is required");
-        }
-
-        if (projectItemRepository.existsBySlugAndIdNot(entity.getSlug(), id)) {
-            throw new IllegalArgumentException("Project slug already exists: " + entity.getSlug());
-        }
-
-        applyDefaults(entity);
-
-        ProjectItem saved = projectItemRepository.save(entity);
-        return projectItemMapper.toDto(saved);
+        return projectItemMapper.toDto(projectItemRepository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        if (!projectItemRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Project item not found with id: " + id);
-        }
-
-        projectItemRepository.deleteById(id);
+        projectItemRepository.delete(findById(id));
     }
 
     @Override
@@ -109,57 +84,177 @@ public class ProjectItemServiceImpl implements ProjectItemService {
     @Override
     @Transactional(readOnly = true)
     public ProjectDTO getPublishedProjectBySlug(String slug, SupportedLanguage language) {
+        String safeSlug = required(slug, "Slug is required");
         SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
 
-        return projectItemRepository.findBySlugAndLanguageAndStatus(
-                        slug,
-                        safeLanguage,
+        return projectItemRepository
+                .findBySlugAndLanguageAndStatus(safeSlug, safeLanguage, ContentStatus.PUBLISHED)
+                .or(() -> safeLanguage == SupportedLanguage.EN
+                        ? java.util.Optional.empty()
+                        : projectItemRepository.findBySlugAndLanguageAndStatus(
+                        safeSlug,
+                        SupportedLanguage.EN,
                         ContentStatus.PUBLISHED
-                )
-                .or(() -> {
-                    if (safeLanguage == SupportedLanguage.EN) {
-                        return java.util.Optional.empty();
-                    }
-
-                    return projectItemRepository.findBySlugAndLanguageAndStatus(
-                            slug,
-                            SupportedLanguage.EN,
-                            ContentStatus.PUBLISHED
-                    );
-                })
+                ))
                 .map(projectItemMapper::toDto)
                 .orElseThrow(() -> new ResourceNotFoundException(
-                        "Published project not found for slug: " + slug
+                        "Published project not found for slug: " + safeSlug
                 ));
     }
 
-    private List<ProjectItem> findPublishedProjects(SupportedLanguage language, boolean featuredOnly) {
-        return featuredOnly
-                ? projectItemRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED
-        )
-                : projectItemRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
+    private ProjectItem findById(Long id) {
+        return projectItemRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException(
+                        "Project item not found with id: " + id
+                ));
+    }
+
+    private List<ProjectItem> findPublishedProjects(
+            SupportedLanguage language,
+            boolean featuredOnly
+    ) {
+        if (featuredOnly) {
+            return projectItemRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
+                    language,
+                    ContentStatus.PUBLISHED
+            );
+        }
+
+        return projectItemRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
                 language,
                 ContentStatus.PUBLISHED
         );
     }
 
-    private void applyDefaults(ProjectItem entity) {
-        if (entity.getLanguage() == null) {
+    private void applyFields(ProjectDTO dto, ProjectItem entity, boolean creating) {
+        if (dto == null) {
+            throw new InvalidRequestException("Project data is required");
+        }
+
+        entity.setTitle(required(
+                first(dto.getTitle(), entity.getTitle()),
+                "Project title is required"
+        ));
+
+        entity.setSlug(required(
+                first(dto.getSlug(), entity.getSlug()),
+                "Slug is required"
+        ));
+
+        entity.setSummary(required(
+                first(dto.getSummary(), dto.getShortDescription(), entity.getSummary()),
+                "Project summary is required"
+        ));
+
+        entity.setDescription(first(
+                dto.getDescription(),
+                dto.getFullDescription(),
+                entity.getDescription()
+        ));
+
+        entity.setClientIndustry(first(
+                dto.getClientIndustry(),
+                entity.getClientIndustry()
+        ));
+
+        entity.setProjectType(first(
+                dto.getProjectType(),
+                entity.getProjectType()
+        ));
+
+        entity.setClientName(first(
+                dto.getClientName(),
+                entity.getClientName()
+        ));
+
+        entity.setCoverImageUrl(first(
+                dto.getCoverImageUrl(),
+                dto.getImageUrl(),
+                entity.getCoverImageUrl()
+        ));
+
+        entity.setImageUrl(first(
+                dto.getImageUrl(),
+                dto.getCoverImageUrl(),
+                entity.getImageUrl()
+        ));
+
+        entity.setLiveUrl(first(
+                dto.getLiveUrl(),
+                dto.getProjectUrl(),
+                entity.getLiveUrl()
+        ));
+
+        entity.setProjectUrl(first(
+                dto.getProjectUrl(),
+                dto.getLiveUrl(),
+                entity.getProjectUrl()
+        ));
+
+        if (dto.getLanguage() != null) {
+            entity.setLanguage(dto.getLanguage());
+        } else if (entity.getLanguage() == null) {
             entity.setLanguage(SupportedLanguage.EN);
         }
 
-        if (entity.getFeatured() == null) {
-            entity.setFeatured(false);
-        }
-
-        if (entity.getDisplayOrder() == null) {
+        if (dto.getDisplayOrder() != null) {
+            entity.setDisplayOrder(dto.getDisplayOrder());
+        } else if (dto.getSortOrder() != null) {
+            entity.setDisplayOrder(dto.getSortOrder());
+        } else if (entity.getDisplayOrder() == null) {
             entity.setDisplayOrder(0);
         }
 
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
+        if (dto.getFeatured() != null) {
+            entity.setFeatured(dto.getFeatured());
+        } else if (entity.getFeatured() == null) {
+            entity.setFeatured(false);
         }
+
+        if (dto.getActive() != null) {
+            entity.setStatus(Boolean.TRUE.equals(dto.getActive())
+                    ? ContentStatus.PUBLISHED
+                    : ContentStatus.DRAFT);
+        } else if (dto.getStatus() != null) {
+            entity.setStatus(dto.getStatus());
+        } else if (entity.getStatus() == null) {
+            entity.setStatus(creating ? ContentStatus.DRAFT : ContentStatus.DRAFT);
+        }
+    }
+
+    private void validateSlugLanguageUnique(
+            String slug,
+            SupportedLanguage language,
+            Long currentId
+    ) {
+        boolean exists = currentId == null
+                ? projectItemRepository.existsBySlugAndLanguage(slug, language)
+                : projectItemRepository.existsBySlugAndLanguageAndIdNot(slug, language, currentId);
+
+        if (exists) {
+            throw new DuplicateResourceException(
+                    "Project slug already exists for language " + language + ": " + slug
+            );
+        }
+    }
+
+    private String first(String... values) {
+        if (values == null) return null;
+
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+
+        return null;
+    }
+
+    private String required(String value, String message) {
+        if (!StringUtils.hasText(value)) {
+            throw new InvalidRequestException(message);
+        }
+
+        return value.trim();
     }
 }

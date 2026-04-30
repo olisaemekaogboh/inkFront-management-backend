@@ -4,6 +4,8 @@ import com.inkFront.inFront.dto.content.ProductBlueprintDTO;
 import com.inkFront.inFront.entity.ProductBlueprint;
 import com.inkFront.inFront.entity.enums.ContentStatus;
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
+import com.inkFront.inFront.exception.DuplicateResourceException;
+import com.inkFront.inFront.exception.InvalidRequestException;
 import com.inkFront.inFront.exception.ResourceNotFoundException;
 import com.inkFront.inFront.mapper.content.ProductBlueprintMapper;
 import com.inkFront.inFront.repository.ProductBlueprintRepository;
@@ -21,151 +23,124 @@ import java.util.List;
 @Transactional
 public class ProductBlueprintServiceImpl implements ProductBlueprintService {
 
-    private final ProductBlueprintRepository productBlueprintRepository;
-    private final ProductBlueprintMapper productBlueprintMapper;
+    private final ProductBlueprintRepository repository;
+    private final ProductBlueprintMapper mapper;
 
     @Override
-    @Transactional(readOnly = true)
     public List<ProductBlueprintDTO> getAll() {
-        return productBlueprintRepository.findAll(Sort.by(Sort.Direction.ASC, "displayOrder"))
+        return repository.findAll(Sort.by("displayOrder"))
                 .stream()
-                .map(productBlueprintMapper::toDto)
+                .map(mapper::toDto)
                 .toList();
     }
 
     @Override
-    @Transactional(readOnly = true)
     public ProductBlueprintDTO getById(Long id) {
-        ProductBlueprint entity = productBlueprintRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product blueprint not found with id: " + id));
-
-        return productBlueprintMapper.toDto(entity);
+        return mapper.toDto(findById(id));
     }
 
     @Override
     public ProductBlueprintDTO create(ProductBlueprintDTO dto) {
-        ProductBlueprint entity = productBlueprintMapper.toEntity(dto);
+        ProductBlueprint entity = new ProductBlueprint();
+        applyFields(dto, entity, true);
+        validateSlug(entity.getSlug(), entity.getLanguage(), null);
 
-        if (!StringUtils.hasText(entity.getSlug())) {
-            throw new IllegalArgumentException("Slug is required");
-        }
-
-        if (productBlueprintRepository.existsBySlug(entity.getSlug())) {
-            throw new IllegalArgumentException("Product blueprint slug already exists: " + entity.getSlug());
-        }
-
-        applyDefaults(entity);
-
-        ProductBlueprint saved = productBlueprintRepository.save(entity);
-        return productBlueprintMapper.toDto(saved);
+        return mapper.toDto(repository.save(entity));
     }
 
     @Override
     public ProductBlueprintDTO update(Long id, ProductBlueprintDTO dto) {
-        ProductBlueprint entity = productBlueprintRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Product blueprint not found with id: " + id));
+        ProductBlueprint entity = findById(id);
+        applyFields(dto, entity, false);
+        validateSlug(entity.getSlug(), entity.getLanguage(), id);
 
-        productBlueprintMapper.updateEntityFromDto(dto, entity);
-
-        if (!StringUtils.hasText(entity.getSlug())) {
-            throw new IllegalArgumentException("Slug is required");
-        }
-
-        if (productBlueprintRepository.existsBySlugAndIdNot(entity.getSlug(), id)) {
-            throw new IllegalArgumentException("Product blueprint slug already exists: " + entity.getSlug());
-        }
-
-        applyDefaults(entity);
-
-        ProductBlueprint saved = productBlueprintRepository.save(entity);
-        return productBlueprintMapper.toDto(saved);
+        return mapper.toDto(repository.save(entity));
     }
 
     @Override
     public void delete(Long id) {
-        if (!productBlueprintRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Product blueprint not found with id: " + id);
-        }
+        repository.delete(findById(id));
+    }
 
-        productBlueprintRepository.deleteById(id);
+    @Override
+    public List<ProductBlueprintDTO> getPublishedProductBlueprints(SupportedLanguage language, boolean featuredOnly) {
+        SupportedLanguage lang = language == null ? SupportedLanguage.EN : language;
+
+        List<ProductBlueprint> list = featuredOnly
+                ? repository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(lang, ContentStatus.PUBLISHED)
+                : repository.findByLanguageAndStatusOrderByDisplayOrderAsc(lang, ContentStatus.PUBLISHED);
+
+        return list.stream().map(mapper::toDto).toList();
     }
 
     @Override
     @Transactional(readOnly = true)
-    public List<ProductBlueprintDTO> getPublishedProductBlueprints(
-            SupportedLanguage language,
-            boolean featuredOnly
+    public ProductBlueprintDTO getPublishedProductBlueprintBySlug(
+            String slug,
+            SupportedLanguage language
     ) {
-        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
+        SupportedLanguage lang = language == null ? SupportedLanguage.EN : language;
 
-        List<ProductBlueprint> items = findPublishedProductBlueprints(safeLanguage, featuredOnly);
+        ProductBlueprint entity = repository
+                .findBySlugAndLanguageAndStatus(slug, lang, ContentStatus.PUBLISHED)
+                .orElseThrow(() -> new ResourceNotFoundException("Product not found"));
 
-        if (items.isEmpty() && safeLanguage != SupportedLanguage.EN) {
-            items = findPublishedProductBlueprints(SupportedLanguage.EN, featuredOnly);
-        }
-
-        return items.stream()
-                .map(productBlueprintMapper::toDto)
-                .toList();
+        return mapper.toDto(entity);
     }
 
-    @Override
-    @Transactional(readOnly = true)
-    public ProductBlueprintDTO getPublishedProductBlueprintBySlug(String slug, SupportedLanguage language) {
-        SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
-
-        return productBlueprintRepository.findBySlugAndLanguageAndStatus(
-                        slug,
-                        safeLanguage,
-                        ContentStatus.PUBLISHED
-                )
-                .or(() -> {
-                    if (safeLanguage == SupportedLanguage.EN) {
-                        return java.util.Optional.empty();
-                    }
-
-                    return productBlueprintRepository.findBySlugAndLanguageAndStatus(
-                            slug,
-                            SupportedLanguage.EN,
-                            ContentStatus.PUBLISHED
-                    );
-                })
-                .map(productBlueprintMapper::toDto)
-                .orElseThrow(() -> new ResourceNotFoundException(
-                        "Published product blueprint not found for slug: " + slug
-                ));
+    private ProductBlueprint findById(Long id) {
+        return repository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Not found"));
     }
 
-    private List<ProductBlueprint> findPublishedProductBlueprints(
-            SupportedLanguage language,
-            boolean featuredOnly
-    ) {
-        return featuredOnly
-                ? productBlueprintRepository.findByLanguageAndStatusAndFeaturedTrueOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED
-        )
-                : productBlueprintRepository.findByLanguageAndStatusOrderByDisplayOrderAsc(
-                language,
-                ContentStatus.PUBLISHED
-        );
+    private void validateSlug(String slug, SupportedLanguage lang, Long id) {
+        boolean exists = id == null
+                ? repository.existsBySlugAndLanguage(slug, lang)
+                : repository.existsBySlugAndLanguageAndIdNot(slug, lang, id);
+
+        if (exists) {
+            throw new DuplicateResourceException("Slug exists for language");
+        }
     }
 
-    private void applyDefaults(ProductBlueprint entity) {
-        if (entity.getLanguage() == null) {
-            entity.setLanguage(SupportedLanguage.EN);
-        }
+    private void applyFields(ProductBlueprintDTO dto, ProductBlueprint e, boolean creating) {
 
-        if (entity.getFeatured() == null) {
-            entity.setFeatured(false);
-        }
+        e.setTitle(required(dto.getTitle(), "Title required"));
+        e.setSlug(required(dto.getSlug(), "Slug required"));
 
-        if (entity.getDisplayOrder() == null) {
-            entity.setDisplayOrder(0);
-        }
+        e.setSummary(first(dto.getSummary(), dto.getShortDescription()));
+        e.setDescription(first(dto.getDescription(), dto.getFullDescription()));
 
-        if (entity.getStatus() == null) {
-            entity.setStatus(ContentStatus.DRAFT);
+        e.setChallengeStatement(dto.getChallengeStatement());
+        e.setSolutionOverview(dto.getSolutionOverview());
+        e.setFeatureHighlights(dto.getFeatureHighlights());
+
+        e.setHeroImageUrl(first(dto.getHeroImageUrl(), dto.getImageUrl()));
+        e.setImageUrl(first(dto.getImageUrl(), dto.getHeroImageUrl()));
+
+        e.setLanguage(dto.getLanguage() != null ? dto.getLanguage() : SupportedLanguage.EN);
+
+        e.setDisplayOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
+        e.setFeatured(Boolean.TRUE.equals(dto.getFeatured()));
+
+        if (dto.getActive() != null) {
+            e.setStatus(dto.getActive() ? ContentStatus.PUBLISHED : ContentStatus.DRAFT);
+        } else if (dto.getStatus() != null) {
+            e.setStatus(dto.getStatus());
+        } else if (creating) {
+            e.setStatus(ContentStatus.DRAFT);
         }
+    }
+
+    private String first(String... vals) {
+        for (String v : vals) {
+            if (StringUtils.hasText(v)) return v.trim();
+        }
+        return null;
+    }
+
+    private String required(String v, String msg) {
+        if (!StringUtils.hasText(v)) throw new InvalidRequestException(msg);
+        return v.trim();
     }
 }

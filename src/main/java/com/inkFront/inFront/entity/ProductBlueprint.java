@@ -2,20 +2,23 @@ package com.inkFront.inFront.entity;
 
 import com.inkFront.inFront.entity.base.SluggableEntity;
 import com.inkFront.inFront.entity.enums.ContentStatus;
-
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "product_blueprints")
+@Table(
+        name = "product_blueprints",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_product_blueprints_slug_language",
+                        columnNames = {"slug", "language"}
+                )
+        }
+)
 public class ProductBlueprint extends SluggableEntity {
 
     @Column(nullable = false, length = 180)
@@ -33,12 +36,18 @@ public class ProductBlueprint extends SluggableEntity {
     @Column(columnDefinition = "TEXT")
     private String featureHighlights;
 
+    @Column(columnDefinition = "TEXT")
+    private String description;
+
     @Column(length = 255)
     private String heroImageUrl;
 
+    @Column(length = 255)
+    private String imageUrl;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
-    private SupportedLanguage language;
+    private SupportedLanguage language = SupportedLanguage.EN;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)

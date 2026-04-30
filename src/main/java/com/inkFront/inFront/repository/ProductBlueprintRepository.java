@@ -26,13 +26,11 @@ public interface ProductBlueprintRepository extends JpaRepository<ProductBluepri
             ContentStatus status
     );
 
-    Optional<ProductBlueprint> findByIdAndLanguageAndStatus(
-            Long id,
+    boolean existsBySlugAndLanguage(String slug, SupportedLanguage language);
+
+    boolean existsBySlugAndLanguageAndIdNot(
+            String slug,
             SupportedLanguage language,
-            ContentStatus status
+            Long id
     );
-
-    boolean existsBySlug(String slug);
-
-    boolean existsBySlugAndIdNot(String slug, Long id);
 }
