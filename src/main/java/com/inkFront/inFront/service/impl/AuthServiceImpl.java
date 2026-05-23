@@ -15,6 +15,7 @@ import com.inkFront.inFront.security.UserPrincipal;
 import com.inkFront.inFront.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -22,6 +23,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashSet;
 import java.util.Set;
@@ -65,11 +67,17 @@ public class AuthServiceImpl implements AuthService {
                 : requestDTO.getEmail().trim().toLowerCase();
 
         if (email == null || email.isBlank()) {
-            throw new IllegalArgumentException("Email is required");
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Email is required");
         }
 
-        if (userRepository.findByEmailIgnoreCase(email).isPresent()) {
-            throw new IllegalArgumentException("Email already exists");
+        // Check if email already exists - return 409 Conflict
+        if (userRepository.existsByEmailIgnoreCase(email)) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Email already exists. Please use a different email or login.");
+        }
+
+        // Check if username already exists - return 409 Conflict
+        if (requestDTO.getUsername() != null && userRepository.existsByUsernameIgnoreCase(requestDTO.getUsername())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already taken. Please choose a different username.");
         }
 
         Role userRole = roleRepository.findByName(SystemRole.USER)
@@ -86,7 +94,7 @@ public class AuthServiceImpl implements AuthService {
                 )
         );
         user.setEmail(email);
-        user.setUsername(email);
+        user.setUsername(requestDTO.getUsername() != null ? requestDTO.getUsername() : email);
         user.setPasswordHash(passwordEncoder.encode(requestDTO.getPassword()));
         user.setProvider(User.AuthProvider.LOCAL);
         user.setEnabled(true);

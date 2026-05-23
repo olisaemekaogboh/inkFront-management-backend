@@ -3,18 +3,18 @@ package com.inkFront.inFront.entity;
 import com.inkFront.inFront.entity.base.AuditableEntity;
 import com.inkFront.inFront.entity.enums.ContentStatus;
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
-import jakarta.persistence.Table;
+import jakarta.persistence.*;
 import lombok.Getter;
 import lombok.Setter;
 
 @Getter
 @Setter
 @Entity
-@Table(name = "hero_sections")
+@Table(name = "hero_sections",
+        indexes = {
+                @Index(name = "idx_hero_lang_placement_status", columnList = "language, placement, status"),
+                @Index(name = "idx_hero_display_order", columnList = "display_order")
+        })
 public class HeroSection extends AuditableEntity {
 
     @Column(nullable = false, length = 180)

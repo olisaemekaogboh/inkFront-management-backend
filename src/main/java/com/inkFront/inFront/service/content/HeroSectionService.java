@@ -1,6 +1,7 @@
 package com.inkFront.inFront.service.content;
 
 import com.inkFront.inFront.dto.content.HeroSectionDTO;
+import com.inkFront.inFront.entity.HeroSection;
 import com.inkFront.inFront.entity.enums.SupportedLanguage;
 
 import java.util.List;
@@ -16,7 +17,7 @@ public interface HeroSectionService {
     HeroSectionDTO update(Long id, HeroSectionDTO dto);
 
     void delete(Long id);
-
+    List<HeroSection> getAllEntities();
     List<HeroSectionDTO> getPublishedHeroSections(
             SupportedLanguage language,
             String placement,

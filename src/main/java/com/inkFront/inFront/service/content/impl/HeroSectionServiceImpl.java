@@ -10,6 +10,7 @@ import com.inkFront.inFront.mapper.content.HeroSectionMapper;
 import com.inkFront.inFront.repository.HeroSectionRepository;
 import com.inkFront.inFront.service.content.HeroSectionService;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -17,6 +18,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.List;
 
+@Slf4j
 @Service
 @RequiredArgsConstructor
 @Transactional
@@ -43,16 +45,41 @@ public class HeroSectionServiceImpl implements HeroSectionService {
 
     @Override
     public HeroSectionDTO create(HeroSectionDTO dto) {
+        log.info("Creating new hero section with title: {}", dto.getTitle());
         HeroSection entity = new HeroSection();
         applyFields(dto, entity, true);
-        return heroSectionMapper.toDto(heroSectionRepository.save(entity));
+
+        // Ensure published items are featured for homepage
+        if (entity.getStatus() == ContentStatus.PUBLISHED && "HOME".equals(entity.getPlacement())) {
+            entity.setFeatured(true);
+            log.info("Auto-set featured=true for published HOME hero section");
+        }
+
+        HeroSection saved = heroSectionRepository.save(entity);
+        log.info("Created hero section with id: {}, status: {}", saved.getId(), saved.getStatus());
+        return heroSectionMapper.toDto(saved);
     }
 
     @Override
     public HeroSectionDTO update(Long id, HeroSectionDTO dto) {
+        log.info("Updating hero section with id: {}", id);
+        log.info("Input DTO - status: {}, active: {}, title: {}", dto.getStatus(), dto.getActive(), dto.getTitle());
+
         HeroSection entity = findById(id);
+        log.info("Existing entity - status: {}, featured: {}", entity.getStatus(), entity.getFeatured());
+
         applyFields(dto, entity, false);
-        return heroSectionMapper.toDto(heroSectionRepository.save(entity));
+
+        // Ensure published items are featured for homepage
+        if (entity.getStatus() == ContentStatus.PUBLISHED && "HOME".equals(entity.getPlacement())) {
+            entity.setFeatured(true);
+            log.info("Auto-set featured=true for published HOME hero section");
+        }
+
+        HeroSection saved = heroSectionRepository.save(entity);
+        log.info("Saved hero section - id: {}, status: {}, featured: {}", saved.getId(), saved.getStatus(), saved.getFeatured());
+
+        return heroSectionMapper.toDto(saved);
     }
 
     @Override
@@ -70,15 +97,38 @@ public class HeroSectionServiceImpl implements HeroSectionService {
         SupportedLanguage safeLanguage = language == null ? SupportedLanguage.EN : language;
         String safePlacement = StringUtils.hasText(placement) ? placement.trim() : "HOME";
 
-        List<HeroSection> items = findPublishedHeroSections(safeLanguage, safePlacement, featuredOnly);
+        log.info("Fetching published hero sections - language: {}, placement: {}, featuredOnly: {}",
+                safeLanguage, safePlacement, featuredOnly);
 
-        if (items.isEmpty() && safeLanguage != SupportedLanguage.EN) {
-            items = findPublishedHeroSections(SupportedLanguage.EN, safePlacement, featuredOnly);
+        List<HeroSectionDTO> items;
+
+        if (featuredOnly) {
+            items = heroSectionRepository.findFeaturedPublishedHeroSectionsDTO(
+                    safeLanguage, safePlacement, ContentStatus.PUBLISHED
+            );
+        } else {
+            items = heroSectionRepository.findPublishedHeroSectionsDTO(
+                    safeLanguage, safePlacement, ContentStatus.PUBLISHED
+            );
         }
 
-        return items.stream()
-                .map(heroSectionMapper::toDto)
-                .toList();
+        log.info("Found {} items for language: {}", items.size(), safeLanguage);
+
+        if (items.isEmpty() && safeLanguage != SupportedLanguage.EN) {
+            log.info("No items found for {}, falling back to EN", safeLanguage);
+            if (featuredOnly) {
+                items = heroSectionRepository.findFeaturedPublishedHeroSectionsDTO(
+                        SupportedLanguage.EN, safePlacement, ContentStatus.PUBLISHED
+                );
+            } else {
+                items = heroSectionRepository.findPublishedHeroSectionsDTO(
+                        SupportedLanguage.EN, safePlacement, ContentStatus.PUBLISHED
+                );
+            }
+            log.info("Found {} items in fallback EN", items.size());
+        }
+
+        return items;
     }
 
     private HeroSection findById(Long id) {
@@ -180,15 +230,26 @@ public class HeroSectionServiceImpl implements HeroSectionService {
             entity.setFeatured(false);
         }
 
-        if (dto.getActive() != null) {
-            entity.setStatus(Boolean.TRUE.equals(dto.getActive())
-                    ? ContentStatus.PUBLISHED
-                    : ContentStatus.DRAFT);
-        } else if (dto.getStatus() != null) {
+        // CRITICAL FIX: Status handling
+        if (dto.getStatus() != null) {
+            log.info("Setting status from dto.getStatus(): {}", dto.getStatus());
             entity.setStatus(dto.getStatus());
-        } else if (entity.getStatus() == null) {
-            entity.setStatus(creating ? ContentStatus.DRAFT : ContentStatus.DRAFT);
+        } else if (dto.getActive() != null) {
+            ContentStatus newStatus = Boolean.TRUE.equals(dto.getActive())
+                    ? ContentStatus.PUBLISHED
+                    : ContentStatus.DRAFT;
+            log.info("Setting status from dto.getActive(): {} -> {}", dto.getActive(), newStatus);
+            entity.setStatus(newStatus);
+        } else if (creating) {
+            // Only set default for new entities
+            log.info("Setting default DRAFT status for new entity");
+            entity.setStatus(ContentStatus.DRAFT);
+        } else {
+            // On update, if no status is provided, log and preserve existing status
+            log.info("No status provided in update, preserving existing status: {}", entity.getStatus());
         }
+        // IMPORTANT: On update, if no status is provided, KEEP the existing status
+        // Do nothing - preserve current status
     }
 
     private String first(String... values) {
@@ -201,6 +262,12 @@ public class HeroSectionServiceImpl implements HeroSectionService {
         }
 
         return null;
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<HeroSection> getAllEntities() {
+        return heroSectionRepository.findAll();
     }
 
     private String required(String value, String message) {

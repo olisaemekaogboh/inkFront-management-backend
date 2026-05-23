@@ -13,10 +13,12 @@ import com.inkFront.inFront.service.AuthService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -44,29 +46,76 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public ResponseEntity<AuthResponseDTO> register(
+    public ResponseEntity<?> register(
             @Valid @RequestBody RegisterRequestDTO requestDTO,
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        return ResponseEntity.ok(authService.register(requestDTO, request, response));
+        try {
+            AuthResponseDTO result = authService.register(requestDTO, request, response);
+            return ResponseEntity.ok(result);
+        } catch (ResponseStatusException e) {
+            // This catches our 409 Conflict exceptions
+            Map<String, Object> errorBody = new LinkedHashMap<>();
+            errorBody.put("success", false);
+            errorBody.put("message", e.getReason());
+            errorBody.put("status", e.getStatusCode().value());
+            return ResponseEntity.status(e.getStatusCode()).body(errorBody);
+        } catch (Exception e) {
+            // Handle any other unexpected errors
+            Map<String, Object> errorBody = new LinkedHashMap<>();
+            errorBody.put("success", false);
+            errorBody.put("message", e.getMessage());
+            errorBody.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(errorBody);
+        }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<AuthResponseDTO> login(
+    public ResponseEntity<?> login(
             @Valid @RequestBody LoginRequestDTO requestDTO,
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        return ResponseEntity.ok(authService.login(requestDTO, request, response));
+        try {
+            AuthResponseDTO result = authService.login(requestDTO, request, response);
+            return ResponseEntity.ok(result);
+        } catch (ResponseStatusException e) {
+            Map<String, Object> errorBody = new LinkedHashMap<>();
+            errorBody.put("success", false);
+            errorBody.put("message", e.getReason());
+            errorBody.put("status", e.getStatusCode().value());
+            return ResponseEntity.status(e.getStatusCode()).body(errorBody);
+        } catch (Exception e) {
+            Map<String, Object> errorBody = new LinkedHashMap<>();
+            errorBody.put("success", false);
+            errorBody.put("message", "Invalid email or password");
+            errorBody.put("status", HttpStatus.UNAUTHORIZED.value());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody);
+        }
     }
 
     @PostMapping("/refresh")
-    public ResponseEntity<AuthResponseDTO> refresh(
+    public ResponseEntity<?> refresh(
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        return ResponseEntity.ok(authService.refresh(request, response));
+        try {
+            AuthResponseDTO result = authService.refresh(request, response);
+            return ResponseEntity.ok(result);
+        } catch (ResponseStatusException e) {
+            Map<String, Object> errorBody = new LinkedHashMap<>();
+            errorBody.put("success", false);
+            errorBody.put("message", e.getReason());
+            errorBody.put("status", e.getStatusCode().value());
+            return ResponseEntity.status(e.getStatusCode()).body(errorBody);
+        } catch (Exception e) {
+            Map<String, Object> errorBody = new LinkedHashMap<>();
+            errorBody.put("success", false);
+            errorBody.put("message", "Session expired. Please login again.");
+            errorBody.put("status", HttpStatus.UNAUTHORIZED.value());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(errorBody);
+        }
     }
 
     @PostMapping("/logout")
