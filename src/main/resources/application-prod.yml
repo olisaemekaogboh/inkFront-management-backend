@@ -1,0 +1,12 @@
+app:
+  frontend:
+    base-url: https://www.inkfront.com
+
+  security:
+    cookie:
+      secure: true
+      same-site: None
+
+spring:
+  jpa:
+    show-sql: false

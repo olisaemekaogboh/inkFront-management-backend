@@ -6,28 +6,45 @@ import com.inkFront.inFront.dto.contact.ContactMessageStatsDTO;
 import com.inkFront.inFront.dto.contact.ContactMessageUpdateDTO;
 import com.inkFront.inFront.service.contact.ContactMessageService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
+@Slf4j
+@Validated
 @RestController
 @RequestMapping("/api/admin/contact-messages")
 @RequiredArgsConstructor
+@PreAuthorize("hasRole('ADMIN')")
 public class AdminContactMessageController {
 
     private final ContactMessageService contactMessageService;
 
     @GetMapping
     public ResponseEntity<Page<ContactMessageResponseDTO>> getMessages(
-            @RequestParam(required = false) String status,
-            @RequestParam(required = false) String search,
-            @RequestParam(defaultValue = "0") int page,
-            @RequestParam(defaultValue = "12") int size
+
+            @RequestParam(required = false)
+            String status,
+
+            @RequestParam(required = false)
+            String search,
+
+            @RequestParam(defaultValue = "0")
+            int page,
+
+            @RequestParam(defaultValue = "12")
+            int size
+
     ) {
+
         int safePage = Math.max(page, 0);
         int safeSize = Math.max(1, Math.min(size, 50));
 
@@ -37,38 +54,68 @@ public class AdminContactMessageController {
                 Sort.by(Sort.Direction.DESC, "createdAt")
         );
 
-        return ResponseEntity.ok(contactMessageService.getAll(status, search, pageable));
+        return ResponseEntity.ok(
+                contactMessageService.getAll(status, search, pageable)
+        );
     }
 
     @GetMapping("/stats")
     public ResponseEntity<ContactMessageStatsDTO> getStats() {
+
         return ResponseEntity.ok(contactMessageService.getStats());
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<ContactMessageResponseDTO> getMessageById(@PathVariable Long id) {
+    public ResponseEntity<ContactMessageResponseDTO> getMessageById(
+            @PathVariable @Positive Long id
+    ) {
+
         return ResponseEntity.ok(contactMessageService.getById(id));
     }
 
     @PatchMapping("/{id}")
     public ResponseEntity<ContactMessageResponseDTO> updateMessage(
-            @PathVariable Long id,
+
+            @PathVariable @Positive Long id,
+
+            @Valid
             @RequestBody ContactMessageUpdateDTO request
+
     ) {
-        return ResponseEntity.ok(contactMessageService.update(id, request));
+
+        log.info("Updating contact message {}", id);
+
+        return ResponseEntity.ok(
+                contactMessageService.update(id, request)
+        );
     }
 
     @PostMapping("/{id}/reply")
     public ResponseEntity<ContactMessageResponseDTO> replyToMessage(
-            @PathVariable Long id,
-            @Valid @RequestBody ContactMessageReplyDTO request
+
+            @PathVariable @Positive Long id,
+
+            @Valid
+            @RequestBody ContactMessageReplyDTO request
+
     ) {
-        return ResponseEntity.ok(contactMessageService.replyToMessage(id, request));
+
+        log.info("Replying to contact message {}", id);
+
+        return ResponseEntity.ok(
+                contactMessageService.replyToMessage(id, request)
+        );
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteMessage(@PathVariable Long id) {
+    public ResponseEntity<Void> deleteMessage(
+            @PathVariable @Positive Long id
+    ) {
+
+        log.info("Deleting contact message {}", id);
+
         contactMessageService.delete(id);
+
         return ResponseEntity.noContent().build();
     }
 }

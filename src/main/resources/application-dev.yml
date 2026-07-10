@@ -1,0 +1,12 @@
+app:
+  frontend:
+    base-url: http://localhost:5173
+
+  security:
+    cookie:
+      secure: false
+      same-site: Lax
+
+spring:
+  jpa:
+    show-sql: true
