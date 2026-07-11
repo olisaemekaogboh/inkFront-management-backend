@@ -44,6 +44,7 @@ public class SecurityConfig {
             HttpSecurity http,
             ObjectProvider<ClientRegistrationRepository> provider
     ) throws Exception {
+        System.out.println("========== SECURITY CONFIG LOADED ==========");
 
         boolean oauthEnabled = provider.getIfAvailable() != null;
 
@@ -112,7 +113,7 @@ public class SecurityConfig {
 
         if (oauthEnabled) {
             http.oauth2Login(oauth -> oauth
-                    .userInfoEndpoint(user -> user.userService(customOAuth2UserService))
+                    .userInfoEndpoint(user ->{ System.out.println("========== USING CUSTOM OAUTH2 USER SERVICE =========="); user.userService(customOAuth2UserService);})
                     .successHandler(successHandler)
             );
         }
