@@ -43,6 +43,7 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
         String email = normalizeEmail((String) oAuth2User.getAttribute("email"));
 
         System.out.println("Email = " + email);
+        System.out.println("Attributes = " + oAuth2User.getAttributes());
 
         if (email == null || email.isBlank()) {
             throw new UsernameNotFoundException("Google account email is missing");
@@ -50,17 +51,41 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
 
         User existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
+        String firstName = valueOrFallback(
+                (String) oAuth2User.getAttribute("given_name"),
+                extractFirstName((String) oAuth2User.getAttribute("name")),
+                "Google"
+        );
+
+        String lastName = valueOrFallback(
+                (String) oAuth2User.getAttribute("family_name"),
+                extractLastName((String) oAuth2User.getAttribute("name")),
+                "User"
+        );
+
+        String displayName = valueOrFallback(
+                (String) oAuth2User.getAttribute("name"),
+                firstName + " " + lastName,
+                email
+        );
+
+        String avatarUrl = (String) oAuth2User.getAttribute("picture");
+
         if (existingUser != null) {
 
             System.out.println("Existing user found");
 
+            existingUser.setFirstName(firstName);
+            existingUser.setLastName(lastName);
+            existingUser.setDisplayName(displayName);
+            existingUser.setAvatarUrl(avatarUrl);
+
             existingUser.setEnabled(true);
             existingUser.setAccountNonLocked(true);
             existingUser.setEmailVerified(true);
+
             existingUser.setProvider(User.AuthProvider.GOOGLE);
             existingUser.setProviderUserId(oAuth2User.getName());
-            existingUser.setDisplayName((String) oAuth2User.getAttribute("name"));
-            existingUser.setAvatarUrl((String) oAuth2User.getAttribute("picture"));
 
             User saved = userRepository.saveAndFlush(existingUser);
 
@@ -74,15 +99,18 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
         Role defaultRole = roleRepository.findByName(SystemRole.ROLE_USER)
                 .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
 
+        String usernameBase = deriveUsernameBase(email, firstName, lastName);
+        String username = ensureUniqueUsername(usernameBase);
+
         User user = new User();
 
         user.setEmail(email);
-        user.setUsername(ensureUniqueUsername(deriveUsernameBase(email, "", "")));
+        user.setUsername(username);
 
-        user.setFirstName((String) oAuth2User.getAttribute("given_name"));
-        user.setLastName((String) oAuth2User.getAttribute("family_name"));
-        user.setDisplayName((String) oAuth2User.getAttribute("name"));
-        user.setAvatarUrl((String) oAuth2User.getAttribute("picture"));
+        user.setFirstName(firstName);
+        user.setLastName(lastName);
+        user.setDisplayName(displayName);
+        user.setAvatarUrl(avatarUrl);
 
         user.setProvider(User.AuthProvider.GOOGLE);
         user.setProviderUserId(oAuth2User.getName());
