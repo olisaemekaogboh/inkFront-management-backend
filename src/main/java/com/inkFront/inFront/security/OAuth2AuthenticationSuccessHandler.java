@@ -43,6 +43,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
         User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
+
         System.out.println("User Found = " + (user != null));
 
         if (user == null) {

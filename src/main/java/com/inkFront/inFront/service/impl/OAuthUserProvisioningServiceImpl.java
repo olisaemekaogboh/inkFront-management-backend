@@ -37,62 +37,69 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
     @Override
     @Transactional
     public User provisionGoogleUser(OAuth2User oAuth2User) {
-        String email = normalizeEmail((String) oAuth2User.getAttributes().get("email"));
+
+        System.out.println("========== GOOGLE LOGIN ==========");
+
+        String email = normalizeEmail((String) oAuth2User.getAttribute("email"));
+
+        System.out.println("Email = " + email);
+
         if (email == null || email.isBlank()) {
             throw new UsernameNotFoundException("Google account email is missing");
         }
 
         User existingUser = userRepository.findByEmailIgnoreCase(email).orElse(null);
+
         if (existingUser != null) {
-            if (!Boolean.TRUE.equals(existingUser.getEnabled())) {
-                existingUser.setEnabled(true);
-            }
-            if (!Boolean.TRUE.equals(existingUser.getAccountNonLocked())) {
-                existingUser.setAccountNonLocked(true);
-            }
-            User savedUser = userRepository.saveAndFlush(existingUser);
 
-            System.out.println("Updated Google user: " + savedUser.getEmail());
+            System.out.println("Existing user found");
 
-            return savedUser;
+            existingUser.setEnabled(true);
+            existingUser.setAccountNonLocked(true);
+            existingUser.setEmailVerified(true);
+            existingUser.setProvider(User.AuthProvider.GOOGLE);
+            existingUser.setProviderUserId(oAuth2User.getName());
+            existingUser.setDisplayName((String) oAuth2User.getAttribute("name"));
+            existingUser.setAvatarUrl((String) oAuth2User.getAttribute("picture"));
+
+            User saved = userRepository.saveAndFlush(existingUser);
+
+            System.out.println("Updated user ID = " + saved.getId());
+
+            return saved;
         }
 
+        System.out.println("Creating new user...");
+
         Role defaultRole = roleRepository.findByName(SystemRole.ROLE_USER)
-                .orElseThrow(() -> new ResourceNotFoundException("Default role not found"));
-
-        String firstName = valueOrFallback(
-                (String) oAuth2User.getAttributes().get("given_name"),
-                extractFirstName((String) oAuth2User.getAttributes().get("name")),
-                "Google"
-        );
-
-        String lastName = valueOrFallback(
-                (String) oAuth2User.getAttributes().get("family_name"),
-                extractLastName((String) oAuth2User.getAttributes().get("name")),
-                "User"
-        );
-
-        String usernameBase = deriveUsernameBase(email, firstName, lastName);
-        String username = ensureUniqueUsername(usernameBase);
+                .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
 
         User user = new User();
-        user.setFirstName(firstName);
-        user.setLastName(lastName);
+
         user.setEmail(email);
-        user.setUsername(username);
-        user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
+        user.setUsername(ensureUniqueUsername(deriveUsernameBase(email, "", "")));
+
+        user.setFirstName((String) oAuth2User.getAttribute("given_name"));
+        user.setLastName((String) oAuth2User.getAttribute("family_name"));
+        user.setDisplayName((String) oAuth2User.getAttribute("name"));
+        user.setAvatarUrl((String) oAuth2User.getAttribute("picture"));
+
+        user.setProvider(User.AuthProvider.GOOGLE);
+        user.setProviderUserId(oAuth2User.getName());
+
+        user.setEmailVerified(true);
         user.setEnabled(true);
         user.setAccountNonLocked(true);
 
-        Set<Role> roles = new HashSet<>();
-        roles.add(defaultRole);
-        user.setRoles(roles);
+        user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
 
-        User savedUser = userRepository.saveAndFlush(user);
+        user.getRoles().add(defaultRole);
 
-        System.out.println("Saved Google user: " + savedUser.getEmail() + " ID=" + savedUser.getId());
+        User saved = userRepository.saveAndFlush(user);
 
-        return savedUser;
+        System.out.println("Created user ID = " + saved.getId());
+
+        return saved;
     }
 
     private String normalizeEmail(String email) {
