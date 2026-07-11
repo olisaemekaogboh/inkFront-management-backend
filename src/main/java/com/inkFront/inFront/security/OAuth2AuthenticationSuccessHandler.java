@@ -65,7 +65,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         }
 
         jwtCookieService.writeLoginCookies(request, response, user);
-
+        System.out.println("FRONTEND URL FROM SPRING = " + frontendBaseUrl);
         String redirectUrl = UriComponentsBuilder
                 .fromUriString(frontendBaseUrl)
                 .path(oauth2SuccessPath)
