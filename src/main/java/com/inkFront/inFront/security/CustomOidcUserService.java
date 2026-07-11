@@ -23,7 +23,7 @@ public class CustomOidcUserService extends OidcUserService {
     @Override
     public OidcUser loadUser(OidcUserRequest userRequest) {
 
-        System.out.println("===== CustomOidcUserService CALLED =====");
+
 
         OidcUser oidcUser = super.loadUser(userRequest);
 

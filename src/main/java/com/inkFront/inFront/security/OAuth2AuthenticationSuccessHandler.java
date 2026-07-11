@@ -35,10 +35,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             Authentication authentication
     ) throws IOException, ServletException {
 
-        System.out.println("========== SUCCESS HANDLER ==========");
-        System.out.println("Authentication Class = " + authentication.getClass().getName());
-        System.out.println("Principal Class = " + authentication.getPrincipal().getClass().getName());
-        System.out.println("Authorities = " + authentication.getAuthorities());
+
 
         Object principal = authentication.getPrincipal();
 
@@ -48,15 +45,14 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
             );
         }
 
-        System.out.println("OAuth Attributes = " + oauth2User.getAttributes());
+
 
         String email = oauth2User.getAttribute("email");
 
-        System.out.println("OAuth Success Email = " + email);
 
         User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
 
-        System.out.println("User Found = " + (user != null));
+
 
         if (user == null) {
             throw new IllegalStateException(
@@ -65,7 +61,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
         }
 
         jwtCookieService.writeLoginCookies(request, response, user);
-        System.out.println("FRONTEND URL FROM SPRING = " + frontendBaseUrl);
+
         String redirectUrl = UriComponentsBuilder
                 .fromUriString(frontendBaseUrl)
                 .path(oauth2SuccessPath)
@@ -73,7 +69,7 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
                 .build()
                 .toUriString();
 
-        System.out.println("Redirecting to = " + redirectUrl);
+
 
         response.sendRedirect(redirectUrl);
     }

@@ -26,15 +26,15 @@ public class CustomOAuth2UserService extends DefaultOAuth2UserService {
     public OAuth2User loadUser(OAuth2UserRequest userRequest)
             throws OAuth2AuthenticationException {
 
-        System.out.println("===== CustomOAuth2UserService CALLED =====");
+
 
         OAuth2User oauth2User = super.loadUser(userRequest);
 
-        System.out.println("Google attributes = " + oauth2User.getAttributes());
+
 
         User user = oauthUserProvisioningService.provisionGoogleUser(oauth2User);
 
-        System.out.println("Provisioned user = " + user.getEmail());
+
 
         Set<SimpleGrantedAuthority> authorities = user.getRoles()
                 .stream()

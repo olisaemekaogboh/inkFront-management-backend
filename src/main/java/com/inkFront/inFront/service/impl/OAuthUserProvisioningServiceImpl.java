@@ -38,12 +38,12 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
     @Transactional
     public User provisionGoogleUser(OAuth2User oAuth2User) {
 
-        System.out.println("========== GOOGLE LOGIN ==========");
+
 
         String email = normalizeEmail((String) oAuth2User.getAttribute("email"));
 
-        System.out.println("Email = " + email);
-        System.out.println("Attributes = " + oAuth2User.getAttributes());
+
+
 
         if (email == null || email.isBlank()) {
             throw new UsernameNotFoundException("Google account email is missing");
@@ -73,7 +73,7 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
 
         if (existingUser != null) {
 
-            System.out.println("Existing user found");
+
 
             existingUser.setFirstName(firstName);
             existingUser.setLastName(lastName);
@@ -98,12 +98,12 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
 
             User saved = userRepository.saveAndFlush(existingUser);
 
-            System.out.println("Updated user ID = " + saved.getId());
+
 
             return saved;
         }
 
-        System.out.println("Creating new user...");
+
 
         Role defaultRole = roleRepository.findByName(SystemRole.ROLE_USER)
                 .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
@@ -144,7 +144,7 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
 
         User saved = userRepository.saveAndFlush(user);
 
-        System.out.println("Created user ID = " + saved.getId());
+
 
         return saved;
     }

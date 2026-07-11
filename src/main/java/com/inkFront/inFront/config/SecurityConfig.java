@@ -42,7 +42,8 @@ public class SecurityConfig {
             HttpSecurity http,
             ObjectProvider<ClientRegistrationRepository> provider
     ) throws Exception {
-        System.out.println("========== SECURITY CONFIG LOADED ==========");
+
+
 
         boolean oauthEnabled = provider.getIfAvailable() != null;
 
