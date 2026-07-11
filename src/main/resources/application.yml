@@ -139,10 +139,9 @@ management:
 
 springdoc:
   api-docs:
-    path: /api-docs
-
+    enabled: false
   swagger-ui:
-    path: /swagger-ui.html
+    enabled: false
 
 logging:
   level:
