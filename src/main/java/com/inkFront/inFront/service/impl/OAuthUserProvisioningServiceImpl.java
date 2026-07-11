@@ -50,7 +50,11 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
             if (!Boolean.TRUE.equals(existingUser.getAccountNonLocked())) {
                 existingUser.setAccountNonLocked(true);
             }
-            return userRepository.save(existingUser);
+            User savedUser = userRepository.saveAndFlush(existingUser);
+
+            System.out.println("Updated Google user: " + savedUser.getEmail());
+
+            return savedUser;
         }
 
         Role defaultRole = roleRepository.findByName(SystemRole.ROLE_USER)
@@ -84,7 +88,11 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
         roles.add(defaultRole);
         user.setRoles(roles);
 
-        return userRepository.save(user);
+        User savedUser = userRepository.saveAndFlush(user);
+
+        System.out.println("Saved Google user: " + savedUser.getEmail() + " ID=" + savedUser.getId());
+
+        return savedUser;
     }
 
     private String normalizeEmail(String email) {

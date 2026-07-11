@@ -38,9 +38,16 @@ public class OAuth2AuthenticationSuccessHandler implements AuthenticationSuccess
 
         OAuth2User oauth2User = (OAuth2User) authentication.getPrincipal();
         String email = oauth2User.getAttribute("email");
+        System.out.println("OAuth Success Email = " + email);
+        System.out.println("OAuth Attributes = " + oauth2User.getAttributes());
 
-        User user = userRepository.findByEmailIgnoreCase(email)
-                .orElseThrow(() -> new IllegalStateException("Provisioned OAuth user not found"));
+        User user = userRepository.findByEmailIgnoreCase(email).orElse(null);
+
+        System.out.println("User Found = " + (user != null));
+
+        if (user == null) {
+            throw new IllegalStateException("Provisioned OAuth user not found for email: " + email);
+        }
 
         jwtCookieService.writeLoginCookies(request, response, user);
 
