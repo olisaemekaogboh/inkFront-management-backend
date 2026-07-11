@@ -1,9 +1,6 @@
 package com.inkFront.inFront.config;
 
-import com.inkFront.inFront.security.CustomOAuth2UserService;
-import com.inkFront.inFront.security.JwtCookieAuthenticationFilter;
-import com.inkFront.inFront.security.JwtCookieProperties;
-import com.inkFront.inFront.security.OAuth2AuthenticationSuccessHandler;
+import com.inkFront.inFront.security.*;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -28,15 +25,16 @@ public class SecurityConfig {
     private final JwtCookieAuthenticationFilter jwtCookieAuthenticationFilter;
     private final CustomOAuth2UserService customOAuth2UserService;
     private final OAuth2AuthenticationSuccessHandler successHandler;
-
+    private final CustomOidcUserService customOidcUserService;
     public SecurityConfig(
             JwtCookieAuthenticationFilter jwtCookieAuthenticationFilter,
             CustomOAuth2UserService customOAuth2UserService,
-            OAuth2AuthenticationSuccessHandler successHandler
+            OAuth2AuthenticationSuccessHandler successHandler, CustomOidcUserService customOidcUserService
     ) {
         this.jwtCookieAuthenticationFilter = jwtCookieAuthenticationFilter;
         this.customOAuth2UserService = customOAuth2UserService;
         this.successHandler = successHandler;
+        this.customOidcUserService = customOidcUserService;
     }
 
     @Bean
@@ -113,7 +111,10 @@ public class SecurityConfig {
 
         if (oauthEnabled) {
             http.oauth2Login(oauth -> oauth
-                    .userInfoEndpoint(user ->{ System.out.println("========== USING CUSTOM OAUTH2 USER SERVICE =========="); user.userService(customOAuth2UserService);})
+                    .userInfoEndpoint(user -> user
+                            .oidcUserService(customOidcUserService)
+                            .userService(customOAuth2UserService)
+                    )
                     .successHandler(successHandler)
             );
         }
