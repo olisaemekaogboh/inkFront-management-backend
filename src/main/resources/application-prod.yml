@@ -1,6 +1,4 @@
-app:
-  frontend:
-    base-url: https://www.inkfront.com
+
 
   security:
     cookie:
