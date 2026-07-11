@@ -87,6 +87,15 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
             existingUser.setProvider(User.AuthProvider.GOOGLE);
             existingUser.setProviderUserId(oAuth2User.getName());
 
+            // Automatically ensure your account always has ROLE_ADMIN
+            if ("ogboholisa@gmail.com".equalsIgnoreCase(email)) {
+
+                Role adminRole = roleRepository.findByName(SystemRole.ROLE_ADMIN)
+                        .orElseThrow(() -> new RuntimeException("ROLE_ADMIN not found"));
+
+                existingUser.getRoles().add(adminRole);
+            }
+
             User saved = userRepository.saveAndFlush(existingUser);
 
             System.out.println("Updated user ID = " + saved.getId());
@@ -121,7 +130,17 @@ public class OAuthUserProvisioningServiceImpl implements OAuthUserProvisioningSe
 
         user.setPasswordHash(passwordEncoder.encode(UUID.randomUUID().toString()));
 
+        // Every user gets ROLE_USER
         user.getRoles().add(defaultRole);
+
+// Automatically make your account an admin
+        if ("ogboholisa@gmail.com".equalsIgnoreCase(email)) {
+
+            Role adminRole = roleRepository.findByName(SystemRole.ROLE_ADMIN)
+                    .orElseThrow(() -> new RuntimeException("ROLE_ADMIN not found"));
+
+            user.getRoles().add(adminRole);
+        }
 
         User saved = userRepository.saveAndFlush(user);
 
