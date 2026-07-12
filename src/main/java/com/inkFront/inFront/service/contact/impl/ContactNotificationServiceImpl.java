@@ -22,10 +22,10 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
     private final JavaMailSender mailSender;
     private final RestTemplateBuilder restTemplateBuilder;
 
-    @Value("${inkfront.notifications.admin-email:${app.mail.admin-to:}}")
+    @Value("${inkfront.notifications.admin-email}")
     private String adminEmail;
 
-    @Value("${spring.mail.username:${app.mail.from:}}")
+    @Value("${app.mail.from}")
     private String senderEmail;
 
     @Value("${inkfront.notifications.whatsapp.enabled:false}")
@@ -53,6 +53,8 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
 
     private void sendEmail(ContactMessage message) {
         try {
+            log.info("Admin Email: '{}'", adminEmail);
+            log.info("Sender Email: '{}'", senderEmail);
             if (isBlank(adminEmail) || isBlank(senderEmail)) {
                 log.warn("Email notification skipped: admin email or sender email not configured.");
                 return;
