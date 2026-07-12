@@ -9,13 +9,12 @@ import com.inkFront.inFront.entity.ContactMessage;
 import com.inkFront.inFront.repository.ContactMessageRepository;
 import com.inkFront.inFront.service.contact.ContactMessageService;
 import com.inkFront.inFront.service.contact.ContactNotificationService;
-import jakarta.mail.internet.MimeMessage;
+import com.inkFront.inFront.service.email.BrevoEmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +48,7 @@ public class ContactMessageServiceImpl implements ContactMessageService {
 
     private final ContactMessageRepository contactMessageRepository;
     private final ContactNotificationService contactNotificationService;
-    private final JavaMailSender javaMailSender;
+    private final BrevoEmailService brevoEmailService;
 
     @Override
     public ContactMessageResponseDTO submit(ContactMessageRequestDTO request) {
@@ -209,25 +208,36 @@ public class ContactMessageServiceImpl implements ContactMessageService {
         contactMessageRepository.delete(message);
     }
 
-    private void sendCustomerReply(ContactMessage contactMessage, String subject, String replyBody, String replyTo) {
+    private void sendCustomerReply(
+            ContactMessage contactMessage,
+            String subject,
+            String replyBody,
+            String replyTo
+    ) {
+
         try {
-            MimeMessage mimeMessage = javaMailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, "UTF-8");
 
-            helper.setTo(contactMessage.getEmail());
-            helper.setSubject(subject);
+            brevoEmailService.sendHtmlEmail(
+                    contactMessage.getEmail(),
+                    subject,
+                    buildReplyHtml(contactMessage, replyBody),
+                    replyTo
+            );
 
-            if (replyTo != null) {
-                helper.setReplyTo(replyTo);
-            }
-
-            helper.setText(buildReplyHtml(contactMessage, replyBody), true);
-
-            javaMailSender.send(mimeMessage);
         } catch (Exception ex) {
-            log.error("Failed to send contact reply email for message id {}", contactMessage.getId(), ex);
-            throw new RuntimeException("Reply email could not be sent. Please check mail settings and try again.");
+
+            log.error(
+                    "Failed to send contact reply email for message id {}",
+                    contactMessage.getId(),
+                    ex
+            );
+
+            throw new RuntimeException(
+                    "Reply email could not be sent."
+            );
+
         }
+
     }
 
     private String buildReplyHtml(ContactMessage contactMessage, String replyBody) {

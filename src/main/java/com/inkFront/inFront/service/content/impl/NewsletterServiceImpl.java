@@ -13,7 +13,6 @@ import com.inkFront.inFront.mapper.content.NewsletterMapper;
 import com.inkFront.inFront.repository.NewsletterCampaignRepository;
 import com.inkFront.inFront.repository.NewsletterSubscriberRepository;
 import com.inkFront.inFront.service.content.NewsletterService;
-import jakarta.mail.MessagingException;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,8 +20,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
+import com.inkFront.inFront.service.email.BrevoEmailService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -46,7 +44,7 @@ public class NewsletterServiceImpl implements NewsletterService {
     private final NewsletterSubscriberRepository subscriberRepository;
     private final NewsletterCampaignRepository campaignRepository;
     private final NewsletterMapper newsletterMapper;
-    private final JavaMailSender mailSender;
+    private final BrevoEmailService brevoEmailService;
 
     @Value("${app.mail.from:no-reply@inkfront.com}")
     private String fromEmail;
@@ -302,20 +300,27 @@ public class NewsletterServiceImpl implements NewsletterService {
     private void sendNewsletterEmail(
             NewsletterSubscriber subscriber,
             NewsletterCampaign campaign
-    ) throws MessagingException {
-        String unsubscribeUrl = frontendUrl + "/newsletter/unsubscribe/" + subscriber.getUnsubscribeToken();
+    ) {
 
-        String html = buildHtmlEmail(subscriber, campaign, unsubscribeUrl);
+        String unsubscribeUrl =
+                frontendUrl +
+                        "/newsletter/unsubscribe/" +
+                        subscriber.getUnsubscribeToken();
 
-        var message = mailSender.createMimeMessage();
-        var helper = new MimeMessageHelper(message, true, "UTF-8");
+        String html =
+                buildHtmlEmail(
+                        subscriber,
+                        campaign,
+                        unsubscribeUrl
+                );
 
-        helper.setFrom(fromEmail);
-        helper.setTo(subscriber.getEmail());
-        helper.setSubject(campaign.getSubject());
-        helper.setText(html, true);
+        brevoEmailService.sendHtmlEmail(
+                subscriber.getEmail(),
+                campaign.getSubject(),
+                html,
+                null
+        );
 
-        mailSender.send(message);
     }
 
     private String buildHtmlEmail(

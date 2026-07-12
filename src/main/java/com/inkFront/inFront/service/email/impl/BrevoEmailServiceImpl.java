@@ -5,10 +5,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
+import org.springframework.web.client.HttpStatusCodeException;
+import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +44,6 @@ public class BrevoEmailServiceImpl implements BrevoEmailService {
             String textContent,
             String replyTo
     ) {
-
         send(
                 to,
                 subject,
@@ -47,7 +51,6 @@ public class BrevoEmailServiceImpl implements BrevoEmailService {
                 null,
                 replyTo
         );
-
     }
 
     @Override
@@ -57,7 +60,6 @@ public class BrevoEmailServiceImpl implements BrevoEmailService {
             String htmlContent,
             String replyTo
     ) {
-
         send(
                 to,
                 subject,
@@ -65,7 +67,6 @@ public class BrevoEmailServiceImpl implements BrevoEmailService {
                 htmlContent,
                 replyTo
         );
-
     }
 
     private void send(
@@ -76,59 +77,80 @@ public class BrevoEmailServiceImpl implements BrevoEmailService {
             String replyTo
     ) {
 
-        HttpHeaders headers = new HttpHeaders();
+        if (apiKey == null || apiKey.isBlank()) {
+            throw new IllegalStateException("Brevo API key is not configured.");
+        }
 
+        if (fromEmail == null || fromEmail.isBlank()) {
+            throw new IllegalStateException("MAIL_FROM is not configured.");
+        }
+
+        HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
         headers.set("api-key", apiKey);
 
-        Map<String, Object> body = Map.of(
-                "sender",
-                Map.of(
-                        "name", "InkFront",
-                        "email", fromEmail
-                ),
-                "to",
-                List.of(
-                        Map.of(
-                                "email", to
-                        )
-                ),
-                "subject",
-                subject,
-                "replyTo",
-                Map.of(
-                        "email",
-                        replyTo == null || replyTo.isBlank()
-                                ? fromEmail
-                                : replyTo
-                ),
-                "textContent",
-                text == null ? "" : text,
-                "htmlContent",
-                html == null ? "" : html
-        );
+        Map<String, Object> body = new HashMap<>();
+
+        body.put("sender", Map.of(
+                "name", "InkFront",
+                "email", fromEmail
+        ));
+
+        body.put("to", List.of(
+                Map.of("email", to)
+        ));
+
+        body.put("subject", subject);
+
+        if (replyTo != null && !replyTo.isBlank()) {
+            body.put("replyTo", Map.of(
+                    "email", replyTo
+            ));
+        }
+
+        if (text != null && !text.isBlank()) {
+            body.put("textContent", text);
+        }
+
+        if (html != null && !html.isBlank()) {
+            body.put("htmlContent", html);
+        }
 
         HttpEntity<Map<String, Object>> request =
                 new HttpEntity<>(body, headers);
 
-        ResponseEntity<String> response =
-                restTemplate().postForEntity(
-                        BREVO_URL,
-                        request,
-                        String.class
-                );
+        try {
 
-        if (!response.getStatusCode().is2xxSuccessful()) {
+            restTemplate().postForEntity(
+                    BREVO_URL,
+                    request,
+                    String.class
+            );
+
+            log.info("Brevo email sent successfully to {}", to);
+
+        } catch (HttpStatusCodeException ex) {
+
+            log.error(
+                    "Brevo API Error {}: {}",
+                    ex.getStatusCode(),
+                    ex.getResponseBodyAsString()
+            );
 
             throw new RuntimeException(
-                    "Brevo failed: "
-                            + response.getStatusCode()
+                    "Brevo API Error: " + ex.getResponseBodyAsString(),
+                    ex
+            );
+
+        } catch (RestClientException ex) {
+
+            log.error("Failed to connect to Brevo", ex);
+
+            throw new RuntimeException(
+                    "Unable to connect to Brevo.",
+                    ex
             );
 
         }
-
-        log.info("Brevo email sent to {}", to);
-
     }
-
 }
