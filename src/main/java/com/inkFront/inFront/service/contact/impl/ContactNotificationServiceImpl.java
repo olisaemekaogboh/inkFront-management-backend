@@ -55,6 +55,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
     }
 
     private void sendEmail(ContactMessage message) {
+        log.info("========== USING BREVO EMAIL SERVICE ==========");
 
         try {
 
