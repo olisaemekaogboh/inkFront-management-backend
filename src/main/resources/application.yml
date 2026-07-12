@@ -47,26 +47,6 @@ spring:
     enabled: true
     baseline-on-migrate: true
     locations: classpath:db/migration
-  mail:
-    host: smtp-relay.brevo.com
-    port: 587
-    username: ${MAIL_USERNAME}
-    password: ${MAIL_PASSWORD}
-    default-encoding: UTF-8
-    test-connection: false
-
-    properties:
-      mail:
-        smtp:
-          auth: true
-          starttls:
-            enable: true
-            required: true
-          ssl:
-            enable: false
-          connectiontimeout: 30000
-          timeout: 30000
-          writetimeout: 30000
 
   security:
     oauth2:
@@ -119,6 +99,9 @@ app:
 inkfront:
   notifications:
     admin-email: ${INKFRONT_ADMIN_EMAIL}
+
+    brevo:
+      api-key: ${BREVO_API_KEY}
 
     whatsapp:
       enabled: ${INKFRONT_WHATSAPP_ENABLED}

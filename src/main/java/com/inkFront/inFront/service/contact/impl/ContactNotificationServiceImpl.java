@@ -6,8 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.mail.SimpleMailMessage;
-import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.http.*;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -19,7 +18,6 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ContactNotificationServiceImpl implements ContactNotificationService {
 
-    private final JavaMailSender mailSender;
     private final RestTemplateBuilder restTemplateBuilder;
 
     @Value("${inkfront.notifications.admin-email}")
@@ -27,6 +25,9 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
 
     @Value("${app.mail.from}")
     private String senderEmail;
+
+    @Value("${inkfront.notifications.brevo.api-key}")
+    private String brevoApiKey;
 
     @Value("${inkfront.notifications.whatsapp.enabled:false}")
     private boolean whatsappEnabled;
@@ -42,6 +43,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
 
     @Override
     public void notifyAdmin(ContactMessage message) {
+
         if (message == null) {
             log.warn("Contact notification skipped: message is null.");
             return;
@@ -52,43 +54,93 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
     }
 
     private void sendEmail(ContactMessage message) {
+
         try {
-            log.info("Admin Email: '{}'", adminEmail);
-            log.info("Sender Email: '{}'", senderEmail);
-            if (isBlank(adminEmail) || isBlank(senderEmail)) {
-                log.warn("Email notification skipped: admin email or sender email not configured.");
+
+            log.info("Sending contact notification through Brevo.");
+
+            if (isBlank(adminEmail)
+                    || isBlank(senderEmail)
+                    || isBlank(brevoApiKey)) {
+
+                log.warn("Brevo email skipped. Missing configuration.");
                 return;
             }
 
-            SimpleMailMessage mail = new SimpleMailMessage();
-            mail.setFrom(senderEmail);
-            mail.setTo(adminEmail);
-            mail.setReplyTo(safeEmail(message.getEmail()));
-            mail.setSubject("New InkFront Contact Message: " + safe(message.getSubject()));
-            mail.setText(buildMessageText(message));
+            RestTemplate restTemplate = restTemplateBuilder.build();
 
-            mailSender.send(mail);
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_JSON);
+            headers.set("api-key", brevoApiKey);
+
+            Map<String, Object> body = Map.of(
+
+                    "sender",
+                    Map.of(
+                            "name", "InkFront",
+                            "email", senderEmail
+                    ),
+
+                    "to",
+                    List.of(
+                            Map.of(
+                                    "email", adminEmail
+                            )
+                    ),
+
+                    "replyTo",
+                    Map.of(
+                            "email", safeEmail(message.getEmail())
+                    ),
+
+                    "subject",
+                    "New InkFront Contact Message: " + safe(message.getSubject()),
+
+                    "textContent",
+                    buildMessageText(message)
+            );
+
+            HttpEntity<Map<String, Object>> request =
+                    new HttpEntity<>(body, headers);
+
+            ResponseEntity<String> response =
+                    restTemplate.postForEntity(
+                            "https://api.brevo.com/v3/smtp/email",
+                            request,
+                            String.class
+                    );
+
+            log.info("Brevo email sent successfully. Status={}", response.getStatusCode());
+
         } catch (Exception ex) {
-            log.error("Failed to send contact email notification", ex);
+
+            log.error("Failed to send Brevo email", ex);
+
         }
     }
 
     private void sendWhatsApp(ContactMessage message) {
+
         try {
+
             if (!whatsappEnabled) {
                 return;
             }
 
-            if (isBlank(whatsappPhoneNumberId) || isBlank(whatsappAccessToken) || isBlank(whatsappAdminPhone)) {
-                log.warn("WhatsApp notification skipped: WhatsApp credentials not configured.");
+            if (isBlank(whatsappPhoneNumberId)
+                    || isBlank(whatsappAccessToken)
+                    || isBlank(whatsappAdminPhone)) {
+
+                log.warn("WhatsApp notification skipped: credentials missing.");
                 return;
             }
 
-            String url = "https://graph.facebook.com/v20.0/"
-                    + whatsappPhoneNumberId
-                    + "/messages";
-
             RestTemplate restTemplate = restTemplateBuilder.build();
+
+            String url =
+                    "https://graph.facebook.com/v20.0/"
+                            + whatsappPhoneNumberId
+                            + "/messages";
 
             Map<String, Object> body = Map.of(
                     "messaging_product", "whatsapp",
@@ -100,21 +152,26 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
                     )
             );
 
-            org.springframework.http.HttpHeaders headers = new org.springframework.http.HttpHeaders();
+            HttpHeaders headers = new HttpHeaders();
             headers.setBearerAuth(whatsappAccessToken);
-            headers.setContentType(org.springframework.http.MediaType.APPLICATION_JSON);
-            headers.setAccept(List.of(org.springframework.http.MediaType.APPLICATION_JSON));
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-            org.springframework.http.HttpEntity<Map<String, Object>> request =
-                    new org.springframework.http.HttpEntity<>(body, headers);
+            HttpEntity<Map<String, Object>> request =
+                    new HttpEntity<>(body, headers);
 
             restTemplate.postForEntity(url, request, String.class);
+
+            log.info("WhatsApp notification sent.");
+
         } catch (Exception ex) {
-            log.error("Failed to send WhatsApp contact notification", ex);
+
+            log.error("Failed to send WhatsApp notification", ex);
+
         }
     }
 
     private String buildMessageText(ContactMessage message) {
+
         return """
                 New contact message received.
 
@@ -148,6 +205,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
     }
 
     private String buildWhatsAppText(ContactMessage message) {
+
         return """
                 New InkFront lead 🚀
 
@@ -169,6 +227,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
     }
 
     private String safeEmail(String value) {
+
         if (isBlank(value)) {
             return senderEmail;
         }
