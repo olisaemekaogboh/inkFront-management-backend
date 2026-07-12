@@ -2,11 +2,14 @@ package com.inkFront.inFront.service.contact.impl;
 
 import com.inkFront.inFront.entity.ContactMessage;
 import com.inkFront.inFront.service.contact.ContactNotificationService;
+import com.inkFront.inFront.service.email.BrevoEmailService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.client.RestTemplateBuilder;
-import org.springframework.http.*;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestTemplate;
 
@@ -18,6 +21,7 @@ import java.util.Map;
 @RequiredArgsConstructor
 public class ContactNotificationServiceImpl implements ContactNotificationService {
 
+    private final BrevoEmailService brevoEmailService;
     private final RestTemplateBuilder restTemplateBuilder;
 
     @Value("${inkfront.notifications.admin-email}")
@@ -25,9 +29,6 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
 
     @Value("${app.mail.from}")
     private String senderEmail;
-
-    @Value("${inkfront.notifications.brevo.api-key}")
-    private String brevoApiKey;
 
     @Value("${inkfront.notifications.whatsapp.enabled:false}")
     private boolean whatsappEnabled;
@@ -57,66 +58,21 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
 
         try {
 
-            log.info("Sending contact notification through Brevo.");
-
-            if (isBlank(adminEmail)
-                    || isBlank(senderEmail)
-                    || isBlank(brevoApiKey)) {
-
-                log.warn("Brevo email skipped. Missing configuration.");
-                return;
-            }
-
-            RestTemplate restTemplate = restTemplateBuilder.build();
-
-            HttpHeaders headers = new HttpHeaders();
-            headers.setContentType(MediaType.APPLICATION_JSON);
-            headers.set("api-key", brevoApiKey);
-
-            Map<String, Object> body = Map.of(
-
-                    "sender",
-                    Map.of(
-                            "name", "InkFront",
-                            "email", senderEmail
-                    ),
-
-                    "to",
-                    List.of(
-                            Map.of(
-                                    "email", adminEmail
-                            )
-                    ),
-
-                    "replyTo",
-                    Map.of(
-                            "email", safeEmail(message.getEmail())
-                    ),
-
-                    "subject",
+            brevoEmailService.sendTextEmail(
+                    adminEmail,
                     "New InkFront Contact Message: " + safe(message.getSubject()),
-
-                    "textContent",
-                    buildMessageText(message)
+                    buildMessageText(message),
+                    safeEmail(message.getEmail())
             );
 
-            HttpEntity<Map<String, Object>> request =
-                    new HttpEntity<>(body, headers);
-
-            ResponseEntity<String> response =
-                    restTemplate.postForEntity(
-                            "https://api.brevo.com/v3/smtp/email",
-                            request,
-                            String.class
-                    );
-
-            log.info("Brevo email sent successfully. Status={}", response.getStatusCode());
+            log.info("Admin notification sent.");
 
         } catch (Exception ex) {
 
-            log.error("Failed to send Brevo email", ex);
+            log.error("Failed to send admin notification", ex);
 
         }
+
     }
 
     private void sendWhatsApp(ContactMessage message) {
@@ -131,7 +87,7 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
                     || isBlank(whatsappAccessToken)
                     || isBlank(whatsappAdminPhone)) {
 
-                log.warn("WhatsApp notification skipped: credentials missing.");
+                log.warn("WhatsApp notification skipped.");
                 return;
             }
 
@@ -159,15 +115,18 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
             HttpEntity<Map<String, Object>> request =
                     new HttpEntity<>(body, headers);
 
-            restTemplate.postForEntity(url, request, String.class);
-
-            log.info("WhatsApp notification sent.");
+            restTemplate.postForEntity(
+                    url,
+                    request,
+                    String.class
+            );
 
         } catch (Exception ex) {
 
             log.error("Failed to send WhatsApp notification", ex);
 
         }
+
     }
 
     private String buildMessageText(ContactMessage message) {
@@ -228,18 +187,24 @@ public class ContactNotificationServiceImpl implements ContactNotificationServic
 
     private String safeEmail(String value) {
 
-        if (isBlank(value)) {
-            return senderEmail;
-        }
+        return isBlank(value)
+                ? senderEmail
+                : value.trim();
 
-        return value.trim();
     }
 
     private boolean isBlank(String value) {
+
         return value == null || value.trim().isEmpty();
+
     }
 
     private String safe(String value) {
-        return isBlank(value) ? "N/A" : value.trim();
+
+        return isBlank(value)
+                ? "N/A"
+                : value.trim();
+
     }
+
 }
