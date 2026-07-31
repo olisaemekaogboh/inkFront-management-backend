@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 @Configuration
 public class CorsConfig {
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000}")
+    @Value("${app.cors.allowed-origins:http://localhost:5173,http://localhost:3000,https://ink-front-management-frontend.vercel.app,https://inkfront.org,https://www.inkfront.org}")
     private String allowedOriginsProperty;
 
     @Bean
