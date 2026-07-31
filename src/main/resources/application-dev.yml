@@ -1,6 +1,3 @@
-app:
-  frontend:
-    base-url: http://localhost:5173
 
   security:
     cookie:
