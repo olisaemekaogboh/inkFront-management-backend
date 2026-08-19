@@ -11,8 +11,8 @@ public class JwtCookieProperties {
     private boolean httpOnly = true;
     private String sameSite = "Lax";
     private String path = "/";
-    private long accessTokenMaxAgeSeconds =  86400;
-    private long refreshTokenMaxAgeSeconds = 604800;
+    private long accessTokenMaxAgeSeconds =  3600;
+    private long refreshTokenMaxAgeSeconds = 2592000;
 
     public String getAccessTokenName() {
         return accessTokenName;

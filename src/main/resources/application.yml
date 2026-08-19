@@ -79,13 +79,6 @@ app:
     access-token-validity-seconds: 3600
     refresh-token-validity-seconds: 2592000
 
-    jwt:
-      issuer: agency-platform
-      access-token-secret: ${JWT_ACCESS_SECRET}
-      refresh-token-secret: ${JWT_REFRESH_SECRET}
-      access-token-expiration-seconds: 900
-      refresh-token-expiration-seconds: 604800
-
     cookie:
       access-token-name: agency_access_token
       refresh-token-name: agency_refresh_token
