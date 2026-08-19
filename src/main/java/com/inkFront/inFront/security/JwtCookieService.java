@@ -12,7 +12,16 @@ public interface JwtCookieService {
             User user
     );
 
-    void clearAuthCookies(HttpServletRequest request, HttpServletResponse response);
+    void refreshLoginCookies(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            User user
+    );
+
+    void clearAuthCookies(
+            HttpServletRequest request,
+            HttpServletResponse response
+    );
 
     String extractAccessToken(HttpServletRequest request);
 

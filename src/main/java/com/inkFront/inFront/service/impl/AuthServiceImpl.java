@@ -134,14 +134,24 @@ public class AuthServiceImpl implements AuthService {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        String oldRefreshToken = jwtCookieService.extractRefreshToken(request);
+        String refreshToken =
+                jwtCookieService.extractRefreshToken(request);
 
-        User user = refreshTokenService.validateAndResolveUser(oldRefreshToken);
+        User user =
+                refreshTokenService.validateAndResolveUser(
+                        refreshToken
+                );
 
-        jwtCookieService.clearAuthCookies(request, response);
-        jwtCookieService.writeLoginCookies(request, response, user);
+        jwtCookieService.refreshLoginCookies(
+                request,
+                response,
+                user
+        );
 
-        return buildAuthResponse(user, "Session refreshed");
+        return buildAuthResponse(
+                user,
+                "Session refreshed"
+        );
     }
 
     @Override

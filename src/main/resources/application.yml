@@ -76,8 +76,8 @@ app:
   security:
     jwt-secret: ${JWT_SECRET_BASE64}
 
-    access-token-validity-seconds: 900
-    refresh-token-validity-seconds: 604800
+    access-token-validity-seconds: 3600
+    refresh-token-validity-seconds: 2592000
 
     jwt:
       issuer: agency-platform
@@ -93,8 +93,8 @@ app:
       http-only: true
       same-site: ${COOKIE_SAME_SITE}
       path: /
-      access-token-max-age-seconds: 900
-      refresh-token-max-age-seconds: 604800
+      access-token-max-age-seconds: 3600
+      refresh-token-max-age-seconds: 2592000
 
 inkfront:
   notifications:

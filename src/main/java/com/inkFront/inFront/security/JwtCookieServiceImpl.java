@@ -5,6 +5,7 @@ import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.ResponseCookie;
+import org.springframework.security.authentication.CredentialsExpiredException;
 import org.springframework.stereotype.Service;
 
 @Service
@@ -30,21 +31,76 @@ public class JwtCookieServiceImpl implements JwtCookieService {
             HttpServletResponse response,
             User user
     ) {
-        String accessToken = jwtService.generateAccessToken(user);
-        String refreshToken = refreshTokenService.issueRefreshToken(user, request);
+        String accessToken =
+                jwtService.generateAccessToken(user);
 
-        addCookie(
+        String refreshToken =
+                refreshTokenService.issueRefreshToken(
+                        user,
+                        request
+                );
+
+        writeAccessTokenCookie(
                 response,
-                properties.getAccessTokenName(),
-                accessToken,
-                properties.getAccessTokenMaxAgeSeconds()
+                accessToken
         );
 
-        addCookie(
+        writeRefreshTokenCookie(
                 response,
-                properties.getRefreshTokenName(),
-                refreshToken,
-                properties.getRefreshTokenMaxAgeSeconds()
+                refreshToken
+        );
+    }
+
+    @Override
+    public void refreshLoginCookies(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            User user
+    ) {
+        String oldRefreshToken =
+                extractRefreshToken(request);
+
+        if (oldRefreshToken == null ||
+                oldRefreshToken.isBlank()) {
+
+            throw new CredentialsExpiredException(
+                    "Refresh token is missing"
+            );
+        }
+
+        /*
+         * Rotate the refresh token.
+         *
+         * The old refresh-token session is revoked
+         * and a new session is created.
+         */
+        String newRefreshToken =
+                refreshTokenService.rotate(
+                        oldRefreshToken,
+                        user,
+                        request
+                );
+
+        /*
+         * Generate a new access token.
+         */
+        String newAccessToken =
+                jwtService.generateAccessToken(user);
+
+        /*
+         * Replace the access-token cookie.
+         */
+        writeAccessTokenCookie(
+                response,
+                newAccessToken
+        );
+
+        /*
+         * Replace the refresh-token cookie.
+         */
+        writeRefreshTokenCookie(
+                response,
+                newRefreshToken
         );
     }
 
@@ -53,25 +109,81 @@ public class JwtCookieServiceImpl implements JwtCookieService {
             HttpServletRequest request,
             HttpServletResponse response
     ) {
-        String refreshToken = extractRefreshToken(request);
-        refreshTokenService.revokeRefreshTokenIfPresent(refreshToken);
+        String refreshToken =
+                extractRefreshToken(request);
 
-        deleteCookie(response, properties.getAccessTokenName());
-        deleteCookie(response, properties.getRefreshTokenName());
+        /*
+         * Revoke the refresh session before
+         * deleting the browser cookies.
+         */
+        refreshTokenService.revokeRefreshTokenIfPresent(
+                refreshToken
+        );
+
+        deleteCookie(
+                response,
+                properties.getAccessTokenName()
+        );
+
+        deleteCookie(
+                response,
+                properties.getRefreshTokenName()
+        );
     }
 
     @Override
-    public String extractAccessToken(HttpServletRequest request) {
-        return extractCookieValue(request, properties.getAccessTokenName());
+    public String extractAccessToken(
+            HttpServletRequest request
+    ) {
+        return extractCookieValue(
+                request,
+                properties.getAccessTokenName()
+        );
     }
 
     @Override
-    public String extractRefreshToken(HttpServletRequest request) {
-        return extractCookieValue(request, properties.getRefreshTokenName());
+    public String extractRefreshToken(
+            HttpServletRequest request
+    ) {
+        return extractCookieValue(
+                request,
+                properties.getRefreshTokenName()
+        );
     }
 
-    private String extractCookieValue(HttpServletRequest request, String cookieName) {
-        if (request == null || request.getCookies() == null || cookieName == null) {
+    private void writeAccessTokenCookie(
+            HttpServletResponse response,
+            String accessToken
+    ) {
+        addCookie(
+                response,
+                properties.getAccessTokenName(),
+                accessToken,
+                properties.getAccessTokenMaxAgeSeconds()
+        );
+    }
+
+    private void writeRefreshTokenCookie(
+            HttpServletResponse response,
+            String refreshToken
+    ) {
+        addCookie(
+                response,
+                properties.getRefreshTokenName(),
+                refreshToken,
+                properties.getRefreshTokenMaxAgeSeconds()
+        );
+    }
+
+    private String extractCookieValue(
+            HttpServletRequest request,
+            String cookieName
+    ) {
+        if (
+                request == null ||
+                        request.getCookies() == null ||
+                        cookieName == null
+        ) {
             return null;
         }
 
@@ -90,26 +202,61 @@ public class JwtCookieServiceImpl implements JwtCookieService {
             String value,
             long maxAgeSeconds
     ) {
-        ResponseCookie cookie = ResponseCookie.from(name, value)
-                .httpOnly(properties.isHttpOnly())
-                .secure(properties.isSecure())
-                .sameSite(properties.getSameSite())
-                .path(properties.getPath())
-                .maxAge(maxAgeSeconds)
-                .build();
+        ResponseCookie cookie =
+                ResponseCookie.from(
+                                name,
+                                value
+                        )
+                        .httpOnly(
+                                properties.isHttpOnly()
+                        )
+                        .secure(
+                                properties.isSecure()
+                        )
+                        .sameSite(
+                                properties.getSameSite()
+                        )
+                        .path(
+                                properties.getPath()
+                        )
+                        .maxAge(
+                                maxAgeSeconds
+                        )
+                        .build();
 
-        response.addHeader("Set-Cookie", cookie.toString());
+        response.addHeader(
+                "Set-Cookie",
+                cookie.toString()
+        );
     }
 
-    private void deleteCookie(HttpServletResponse response, String name) {
-        ResponseCookie cookie = ResponseCookie.from(name, "")
-                .httpOnly(properties.isHttpOnly())
-                .secure(properties.isSecure())
-                .sameSite(properties.getSameSite())
-                .path(properties.getPath())
-                .maxAge(0)
-                .build();
+    private void deleteCookie(
+            HttpServletResponse response,
+            String name
+    ) {
+        ResponseCookie cookie =
+                ResponseCookie.from(
+                                name,
+                                ""
+                        )
+                        .httpOnly(
+                                properties.isHttpOnly()
+                        )
+                        .secure(
+                                properties.isSecure()
+                        )
+                        .sameSite(
+                                properties.getSameSite()
+                        )
+                        .path(
+                                properties.getPath()
+                        )
+                        .maxAge(0)
+                        .build();
 
-        response.addHeader("Set-Cookie", cookie.toString());
+        response.addHeader(
+                "Set-Cookie",
+                cookie.toString()
+        );
     }
 }
