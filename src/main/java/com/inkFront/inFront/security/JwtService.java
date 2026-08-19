@@ -29,8 +29,8 @@ public class JwtService {
 
     public JwtService(
             @Value("${app.security.jwt-secret:}") String jwtSecret,
-            @Value("${app.security.access-token-validity-seconds: 86400}") long accessTokenValiditySeconds,
-            @Value("${app.security.refresh-token-validity-seconds:604800}") long refreshTokenValiditySeconds
+            @Value("${app.security.access-token-validity-seconds: 3600}") long accessTokenValiditySeconds,
+            @Value("${app.security.refresh-token-validity-seconds: 2592000}") long refreshTokenValiditySeconds
     ) {
         this.secretKey = buildSecretKey(jwtSecret);
         this.accessTokenValiditySeconds = accessTokenValiditySeconds;
